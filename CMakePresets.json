@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-debug",
+      "displayName": "Windows Debug",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "depthai_DIR": "E:/luxonis/depthai-win64/lib/cmake/depthai",
+        "DEPTHAI_WIN64_DIR": "E:/luxonis/depthai-win64",
+        "GLFW_ROOT": "E:/luxonis/glfw-win64",
+        "OAK_ENABLE_CUDA": "OFF"
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows Release",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "depthai_DIR": "E:/luxonis/depthai-win64/lib/cmake/depthai",
+        "DEPTHAI_WIN64_DIR": "E:/luxonis/depthai-win64",
+        "GLFW_ROOT": "E:/luxonis/glfw-win64",
+        "OAK_ENABLE_CUDA": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release"
+    }
+  ]
+}
