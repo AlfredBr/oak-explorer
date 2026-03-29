@@ -12,6 +12,7 @@ void renderSidebar(const oak::OakDevice& device) {
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::Begin("Device", nullptr, flags);
@@ -32,7 +33,8 @@ void renderSidebar(const oak::OakDevice& device) {
         }
     } else {
         ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), "● No device");
-        ImGui::TextDisabled("Connect OAK-D-Lite\nvia USB3 and relaunch.");
+        ImGui::TextDisabled("Connect OAK-D-Lite");
+        ImGui::TextDisabled("via USB3 and relaunch.");
     }
 
     ImGui::End();
