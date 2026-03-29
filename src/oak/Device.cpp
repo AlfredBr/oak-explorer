@@ -1,13 +1,15 @@
 // src/oak/Device.cpp
 #include "oak/Device.h"
 #include <depthai/depthai.hpp>
+#include <depthai/xlink/XLinkConnection.hpp>
 #include <algorithm>
 
 namespace oak {
 
 void OakDevice::poll() {
     try {
-        const auto connected = dai::DeviceBase::getAllConnectedDevices();
+        // getAllConnectedDevices is on XLinkConnection in depthai v2.17.3
+        const auto connected = dai::XLinkConnection::getAllConnectedDevices();
         if (connected.empty()) {
             connected_ = false;
             info_ = {};
