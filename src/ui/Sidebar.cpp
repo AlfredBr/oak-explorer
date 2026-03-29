@@ -17,22 +17,40 @@ void renderSidebar(const oak::OakDevice& device) {
 
     ImGui::Begin("Device", nullptr, flags);
 
-    // Connection status dot
+    // Connection status indicator
+    // Note: ImGui's default font (ProggyClean) is ASCII-only — use ImGui::Bullet()
+    // instead of Unicode bullet characters like ●
     if (device.isConnected()) {
-        ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "● Connected");
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.9f, 0.3f, 1.0f));
+        ImGui::Bullet();
+        ImGui::SameLine();
+        ImGui::Text("Connected");
+        ImGui::PopStyleColor();
+
         const auto& info = device.info();
         ImGui::Spacing();
+
         ImGui::TextDisabled("MX ID");
         ImGui::TextWrapped("%s", info.mxId.c_str());
         ImGui::Spacing();
-        ImGui::TextDisabled("Device");
-        ImGui::TextWrapped("%s", info.name.c_str());
+
+        // State: UNBOOTED = visible but no pipeline running (normal for Stage 1)
+        //        BOOTED   = pipeline active (Stage 2+)
+        ImGui::TextDisabled("State");
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
+            info.available ? "Unbooted (ready)" : "Booted / in use");
         ImGui::Spacing();
+
         if (!info.available) {
-            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "(in use by another process)");
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "(claimed by a process)");
         }
     } else {
-        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), "● No device");
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
+        ImGui::Bullet();
+        ImGui::SameLine();
+        ImGui::Text("No device");
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
         ImGui::TextDisabled("Connect OAK-D-Lite");
         ImGui::TextDisabled("via USB3 and relaunch.");
     }
