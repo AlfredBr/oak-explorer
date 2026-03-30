@@ -42,6 +42,7 @@ void CameraStream::open() {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
             width_, height_, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);  // restore default after texture upload
 
         streaming_ = true;
         fprintf(stderr, "CameraStream: opened, streaming %dx%d @ 30fps\n",
