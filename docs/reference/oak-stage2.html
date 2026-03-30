@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage 2 — Camera Streams | oak-explorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b26;
+    --bg3: #1e2535;
+    --border: rgba(255,255,255,0.08);
+    --text: #e2e8f0;
+    --muted: rgba(255,255,255,0.45);
+    --blue: #4f8ef7;
+    --green: #50c878;
+    --yellow: #ffb432;
+    --red: #f85149;
+    --purple: #c864c8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 2rem 1rem;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .toc h2 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+  .toc ol { padding-left: 1.25rem; }
+  .toc li { margin-bottom: 0.3rem; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .section h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.4rem; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+  code {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88em;
+    color: #79c0ff;
+  }
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.87em;
+    line-height: 1.6;
+    margin: 0.75rem 0;
+    color: #c9d1d9;
+  }
+  pre .comment { color: #6e7681; }
+  pre .keyword { color: #ff7b72; }
+  pre .type { color: #79c0ff; }
+  pre .string { color: #a5d6ff; }
+  pre .call { color: #d2a8ff; }
+  pre .num { color: #f2cc60; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 6px;
+  }
+  .badge-wip  { background: rgba(255,180,50,0.15); color: var(--yellow); border: 1px solid rgba(255,180,50,0.3); }
+  .badge-tag  { background: rgba(200,100,200,0.15); color: var(--purple); border: 1px solid rgba(200,100,200,0.3); }
+  .insight {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 0.75rem 0;
+  }
+  .insight .label { color: var(--muted); font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .step-list { display: flex; flex-direction: column; gap: 0; margin: 12px 0; }
+  .step { display: flex; gap: 0; align-items: stretch; }
+  .step-icon { display: flex; flex-direction: column; align-items: center; width: 44px; flex-shrink: 0; }
+  .step-badge {
+    width: 44px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72em; font-weight: 700; flex-shrink: 0;
+  }
+  .step-line { width: 2px; background: #30363d; flex: 1; min-height: 12px; }
+  .step-body { padding: 0 0 20px 16px; }
+  .step-body h4 { font-weight: 600; color: #e6edf3; margin-bottom: 3px; font-size: 0.95em; }
+  .step-body p { color: #8b949e; font-size: 0.88em; margin: 0; }
+  .node-box {
+    border-radius: 8px; padding: 14px 18px; margin: 8px 0;
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .node-icon {
+    width: 42px; height: 42px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+  }
+  .node-body h4 { font-weight: 600; color: #e6edf3; margin-bottom: 4px; }
+  .node-body p { color: #8b949e; font-size: 0.88em; margin: 0; }
+  ul { padding-left: 1.4rem; }
+  ul li { margin-bottom: 0.3rem; color: #8b949e; font-size: 0.92em; }
+  ul li strong { color: #e6edf3; }
+  p { margin-bottom: 0.75rem; }
+  p:last-child { margin-bottom: 0; }
+  .header-strip {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 2rem; padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stage-num-big {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(80,200,120,0.12); border: 2px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; font-weight: 800; color: var(--green); flex-shrink: 0;
+  }
+  .nav-links { margin-top: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+  .nav-links a {
+    color: var(--blue); text-decoration: none; font-size: 0.9rem;
+    padding: 6px 14px; border: 1px solid rgba(79,142,247,0.3); border-radius: 6px;
+  }
+  .nav-links a:hover { background: rgba(79,142,247,0.1); }
+  .wip { background: rgba(255,180,50,0.06); border: 1px dashed rgba(255,180,50,0.3); border-radius: 8px; padding: 14px 18px; color: var(--muted); font-size: 0.88em; text-align: center; margin: 0.75rem 0; }
+  .pipeline-diagram {
+    display: flex; align-items: center; gap: 0;
+    background: #0d1117; border: 1px solid #30363d;
+    border-radius: 10px; padding: 20px 24px; margin: 12px 0;
+    overflow-x: auto;
+  }
+  .pd-node {
+    background: var(--bg2); border-radius: 8px; padding: 10px 16px;
+    text-align: center; min-width: 110px; flex-shrink: 0;
+  }
+  .pd-node .pd-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .pd-node .pd-name { font-weight: 700; font-size: 0.95em; }
+  .pd-arrow {
+    flex-shrink: 0; color: #30363d; font-size: 1.4rem;
+    padding: 0 8px; display: flex; align-items: center;
+  }
+  .pd-device { border: 1px solid rgba(200,100,200,0.3); background: rgba(200,100,200,0.06); }
+  .pd-link   { border: 1px solid rgba(255,180,50,0.3);  background: rgba(255,180,50,0.06); }
+  .pd-host   { border: 1px solid rgba(80,200,120,0.3);  background: rgba(80,200,120,0.06); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header-strip">
+    <div class="stage-num-big">2</div>
+    <div>
+      <h1 style="font-size: 1.6rem; font-weight: 800;">Stage 2 — Camera Streams</h1>
+      <p style="color: var(--muted); margin: 0;">Live RGB pipeline · OpenGL texture · ImGui::Image()</p>
+    </div>
+    <div style="margin-left: auto; text-align: right;">
+      <span class="badge badge-wip">In Progress</span>
+    </div>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">Stage Overview</a></li>
+      <li><a href="#pipeline-boot">Concept 1 — Booting the Pipeline</a></li>
+      <li><a href="#nodes">Concept 2 — ColorCamera &amp; XLinkOut Nodes</a></li>
+      <li><a href="#queues">Concept 3 — Output Queues &amp; ImgFrame</a></li>
+      <li><a href="#texture">Concept 4 — OpenGL Texture Upload</a></li>
+      <li><a href="#imgui-image">Concept 5 — ImGui::Image()</a></li>
+      <li><a href="#architecture">Stage 2 Architecture</a></li>
+      <li><a href="#annotated-code">Annotated Code</a></li>
+      <li><a href="#gotchas">Gotchas &amp; Lessons Learned</a></li>
+    </ol>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <div class="section" id="overview">
+    <h2>Stage Overview</h2>
+    <p class="subtitle">From sensor to pixel on screen — 5 steps</p>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:#4a9eff;">1</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>Build a Pipeline on the host</h4>
+          <p>Create a <code>dai::Pipeline</code>. Add a <code>ColorCamera</code> node and an <code>XLinkOut</code> node. Wire them together. Nothing runs yet — this is just a description.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:#4a9eff;">2</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>Boot the device</h4>
+          <p><code>dai::Device device(pipeline)</code> uploads the graph to the VPU over USB and starts execution. Sidebar shows "Booted / in use".</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:#4a9eff;">3</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>Receive frames on the host</h4>
+          <p>Call <code>device.getOutputQueue("rgb")</code>. Each call to <code>queue-&gt;tryGet()</code> returns the latest <code>ImgFrame</code> — or nullptr if none is ready. Non-blocking.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:#4a9eff;">4</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>Upload to an OpenGL texture</h4>
+          <p>Extract raw pixel bytes from the <code>ImgFrame</code> and call <code>glTexSubImage2D()</code> to push them to the GPU. One texture object, updated every frame.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);color:#50c878;">5</div>
+        </div>
+        <div class="step-body">
+          <h4>Render with ImGui::Image()</h4>
+          <p>Pass the OpenGL texture ID to <code>ImGui::Image()</code>. ImGui draws it scaled to the window. Live video in your harness.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONCEPT 1: PIPELINE BOOT -->
+  <div class="section" id="pipeline-boot">
+    <h2>Concept 1 — Booting the Pipeline</h2>
+    <p class="subtitle">What actually happens when you call <code>dai::Device device(pipeline)</code></p>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(79,142,247,0.15);border:1px solid rgba(79,142,247,0.4);color:#4a9eff;">HOST</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>You describe the graph</h4>
+          <p>Create a <code>dai::Pipeline</code>. Add nodes. Wire them. Nothing is running — this is a specification, like a recipe, not a meal.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(255,180,50,0.15);border:1px solid rgba(255,180,50,0.4);color:#ffb432;">USB</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>Pipeline is serialised and uploaded</h4>
+          <p><code>dai::Device device(pipeline)</code> serialises the graph and sends it to the OAK over USB. Device transitions <strong style="color:#e6edf3;">Unbooted → Booted</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(200,100,200,0.15);border:1px solid rgba(200,100,200,0.4);color:#c864c8;">VPU</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <h4>The OAK executes the graph autonomously</h4>
+          <p>The Intel Myriad X VPU runs your nodes independently of the host CPU. The color camera starts capturing. Frames flow through the graph. Your PC is not involved.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">
+          <div class="step-badge" style="background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);color:#50c878;">Q</div>
+        </div>
+        <div class="step-body">
+          <h4>Frames accumulate in an output queue</h4>
+          <p>The <code>XLinkOut</code> node ships frames over USB into a named queue on the host. Your render loop calls <code>tryGet()</code> each frame — non-blocking, returns nullptr if empty.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="label">Key insight</div>
+      <p style="color:#e6edf3;margin:0;">The OAK is not a webcam. It's a small computer. You program it. The pipeline is a program that runs on the device, not on your PC. Your PC just reads the output.</p>
+    </div>
+  </div>
+
+  <!-- CONCEPTS 3–5 PLACEHOLDER -->
+  <!-- CONCEPT 2: NODES -->
+  <div class="section" id="nodes">
+    <h2>Concept 2 — ColorCamera &amp; XLinkOut Nodes</h2>
+    <p class="subtitle">The two nodes that make up our Stage 2 pipeline</p>
+
+    <div class="pipeline-diagram">
+      <div class="pd-node pd-device">
+        <div class="pd-label" style="color:var(--purple);">Source</div>
+        <div class="pd-name">ColorCamera</div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:3px;">1280×720 BGR</div>
+      </div>
+      <div class="pd-arrow">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <span style="font-size:0.68em;color:var(--blue);margin-bottom:2px;">preview</span>
+          <span>→</span>
+        </div>
+      </div>
+      <div class="pd-node pd-link">
+        <div class="pd-label" style="color:var(--yellow);">Output</div>
+        <div class="pd-name">XLinkOut</div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:3px;">stream: "rgb"</div>
+      </div>
+      <div class="pd-arrow">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <span style="font-size:0.68em;color:var(--green);margin-bottom:2px;">USB</span>
+          <span>→</span>
+        </div>
+      </div>
+      <div class="pd-node pd-host">
+        <div class="pd-label" style="color:var(--green);">Host</div>
+        <div class="pd-name">Output Queue</div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:3px;">getOutputQueue("rgb")</div>
+      </div>
+    </div>
+
+    <h3>ColorCamera — Source node</h3>
+    <p>Drives the RGB sensor. Configures resolution, frame rate, and pixel format. Produces frames continuously once the pipeline is booted.</p>
+    <ul>
+      <li><strong>setPreviewSize(1280, 720)</strong> — output resolution for the preview stream</li>
+      <li><strong>setInterleaved(false)</strong> — planar pixel layout, required for OpenGL upload</li>
+      <li><strong>setColorOrder(BGR)</strong> — B, G, R byte order (OpenCV convention)</li>
+      <li><strong>setFps(30)</strong> — target frame rate</li>
+    </ul>
+
+    <h3>XLinkOut — Output node</h3>
+    <p>A pipeline tap — ships data from the OAK to the host over USB. Every stream needs one. You give it a name; the host uses that same name to open the receive queue.</p>
+    <ul>
+      <li><strong>setStreamName("rgb")</strong> — the name used on the host side</li>
+      <li><strong>cam->preview.link(xout->input)</strong> — wires the camera output into XLinkOut</li>
+    </ul>
+
+    <h3>Building the pipeline</h3>
+<pre><span class="type">dai::Pipeline</span> pipeline;
+
+<span class="keyword">auto</span> cam = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::ColorCamera</span>&gt;();
+cam-&gt;<span class="call">setPreviewSize</span>(<span class="num">1280</span>, <span class="num">720</span>);
+cam-&gt;<span class="call">setInterleaved</span>(<span class="keyword">false</span>);
+cam-&gt;<span class="call">setColorOrder</span>(<span class="type">dai::ColorCameraProperties::ColorOrder::BGR</span>);
+cam-&gt;<span class="call">setFps</span>(<span class="num">30</span>);
+
+<span class="keyword">auto</span> xout = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::XLinkOut</span>&gt;();
+xout-&gt;<span class="call">setStreamName</span>(<span class="string">"rgb"</span>);
+
+cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="comment">// wire camera → XLinkOut</span></pre>
+  </div>
+
+  <!-- CONCEPT 3: QUEUES -->
+  <div class="section" id="queues">
+    <h2>Concept 3 — Output Queues &amp; ImgFrame</h2>
+    <p class="subtitle">How the host receives frames from the OAK</p>
+
+    <p>The OAK produces frames at 30fps independently of your render loop. They accumulate in a fixed-size buffer on the host. Your loop calls <code>tryGet()</code> once per frame — non-blocking, returns <code>nullptr</code> if the queue is empty.</p>
+
+    <h3>Two calls: setup once, poll every frame</h3>
+<pre><span class="comment">// Once at startup — get the queue by the stream name we gave XLinkOut</span>
+<span class="keyword">auto</span> queue = device.<span class="call">getOutputQueue</span>(<span class="string">"rgb"</span>, <span class="num">4</span>, <span class="keyword">false</span>);
+<span class="comment">//                                   name  maxSize  blocking</span>
+
+<span class="comment">// Every render frame — non-blocking poll</span>
+<span class="keyword">auto</span> frame = queue-&gt;<span class="call">tryGet</span>&lt;<span class="type">dai::ImgFrame</span>&gt;();
+<span class="keyword">if</span> (frame) {
+    <span class="comment">// new frame — upload to texture</span>
+}</pre>
+
+    <p><code>maxSize=4</code> means the queue holds up to 4 frames before the oldest is dropped. <code>blocking=false</code> means <code>tryGet()</code> never stalls your render loop.</p>
+
+    <h3>What's inside an ImgFrame</h3>
+    <ul>
+      <li><strong>getData()</strong> — raw pixel bytes. For BGR, 3 bytes per pixel, width×height×3 total. This is what you hand to OpenGL.</li>
+      <li><strong>getWidth() / getHeight()</strong> — frame dimensions. Should match <code>setPreviewSize()</code>.</li>
+      <li><strong>getTimestamp()</strong> — capture time on the device clock. Useful for sync in Stage 3+.</li>
+      <li><strong>getSequenceNum()</strong> — frame counter. If this jumps, frames were dropped in the queue.</li>
+    </ul>
+  </div>
+
+  <!-- CONCEPT 4: TEXTURE -->
+  <div class="section" id="texture">
+    <h2>Concept 4 — OpenGL Texture Upload</h2>
+    <p class="subtitle">Getting pixel bytes from CPU RAM onto the GPU</p>
+
+    <p>Every frame, <code>getData()</code> gives you a pointer to raw BGR bytes in CPU RAM. You hand those to OpenGL with <code>glTexSubImage2D()</code> and it copies them to GPU VRAM. One texture object lives for the lifetime of the app — you overwrite it each frame.</p>
+
+    <h3>Phase 1 — Create the texture once at startup</h3>
+<pre><span class="type">GLuint</span> texId;
+<span class="call">glGenTextures</span>(<span class="num">1</span>, &amp;texId);
+<span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId);
+<span class="call">glTexParameteri</span>(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+<span class="call">glTexParameteri</span>(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+<span class="comment">// Allocate GPU memory (nullptr = empty for now)</span>
+<span class="call">glTexImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, GL_RGB,
+    width, height, <span class="num">0</span>, GL_BGR, GL_UNSIGNED_BYTE, <span class="keyword">nullptr</span>);</pre>
+
+    <h3>Phase 2 — Upload each new frame</h3>
+<pre><span class="keyword">auto</span> frame = queue-&gt;<span class="call">tryGet</span>&lt;<span class="type">dai::ImgFrame</span>&gt;();
+<span class="keyword">if</span> (frame) {
+    <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId);
+    <span class="call">glTexSubImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>,  <span class="comment">// target, mip level</span>
+        <span class="num">0</span>, <span class="num">0</span>,                          <span class="comment">// x, y offset</span>
+        width, height,                 <span class="comment">// dimensions</span>
+        GL_BGR, GL_UNSIGNED_BYTE,      <span class="comment">// format, type</span>
+        frame-&gt;<span class="call">getData</span>().<span class="call">data</span>());      <span class="comment">// pixel pointer</span>
+}</pre>
+
+    <h3>OpenGL API — what each call actually does</h3>
+
+    <h4 style="color:var(--purple);font-family:monospace;font-weight:600;margin:1rem 0 0.3rem;">glGenTextures(1, &amp;texId)</h4>
+    <p>Asks OpenGL to reserve a texture slot and hand you back an integer ID (<code>GLuint</code>). The first argument is how many textures to create at once — we only need one. Nothing is allocated in VRAM yet; this is just bookkeeping.</p>
+
+    <h4 style="color:var(--purple);font-family:monospace;font-weight:600;margin:1rem 0 0.3rem;">glBindTexture(GL_TEXTURE_2D, texId)</h4>
+    <p>OpenGL is a state machine — you don't pass a texture to every function, you <em>bind</em> it first and all subsequent texture calls target it. <code>GL_TEXTURE_2D</code> is the target slot (a 2D image, as opposed to a cube map or 3D texture). You bind before creating, before setting parameters, and before each upload.</p>
+
+    <h4 style="color:var(--purple);font-family:monospace;font-weight:600;margin:1rem 0 0.3rem;">glTexParameteri — MIN_FILTER and MAG_FILTER</h4>
+    <p>Controls how OpenGL samples the texture when drawn at a size different from its native resolution. <code>MIN_FILTER</code> applies when shrunk (minified); <code>MAG_FILTER</code> applies when enlarged (magnified). <code>GL_LINEAR</code> blends neighbouring pixels for a smooth result. The alternative, <code>GL_NEAREST</code>, snaps to the closest pixel — useful for pixel art but blocky for camera video.</p>
+
+    <h4 style="color:var(--purple);font-family:monospace;font-weight:600;margin:1rem 0 0.3rem;">glTexImage2D(target, mip, internalFormat, w, h, border, format, type, data)</h4>
+    <p>Allocates VRAM and optionally uploads initial pixel data. Key parameters:</p>
+    <ul>
+      <li><strong>mip = 0</strong> — base mip level. We don't use mipmaps for live video.</li>
+      <li><strong>internalFormat = GL_RGB</strong> — how OpenGL stores it in VRAM: 3 channels, 8 bits each.</li>
+      <li><strong>format = GL_BGR</strong> — the byte order of the data you're providing. Matches the OAK's output.</li>
+      <li><strong>data = nullptr</strong> — allocates memory without uploading anything yet. The first real frame fills it via <code>glTexSubImage2D</code>.</li>
+    </ul>
+
+    <h4 style="color:var(--purple);font-family:monospace;font-weight:600;margin:1rem 0 0.3rem;">glTexSubImage2D(target, mip, x, y, w, h, format, type, data)</h4>
+    <p>Updates a region of an already-allocated texture in place — <strong>no reallocation</strong>. This is what you call every frame. It's much faster than <code>glTexImage2D</code> because the VRAM is already reserved.</p>
+    <ul>
+      <li><strong>x=0, y=0</strong> — top-left corner, we replace the full texture each frame.</li>
+      <li><strong>GL_BGR</strong> — OAK outputs Blue-Green-Red byte order. OpenGL handles the reorder internally at no extra cost.</li>
+      <li><strong>getData().data()</strong> — returns a raw <code>uint8_t*</code> pointer to the frame's pixel buffer in CPU RAM.</li>
+    </ul>
+
+    <div class="lesson" style="margin-top:1rem;">
+      <h4>The texture ID is the bridge to ImGui</h4>
+      <p><code>GLuint texId</code> is an integer OpenGL gave you. ImGui accepts an <code>ImTextureID</code> (a <code>void*</code>). Cast it: <code>(ImTextureID)(uintptr_t)texId</code>. The ImGui OpenGL backend uses it to bind and draw your texture. That's the entire bridge between OpenGL and ImGui.</p>
+    </div>
+  </div>
+
+  <!-- CONCEPT 5: IMGUI IMAGE -->
+  <div class="section" id="imgui-image">
+    <h2>Concept 5 — ImGui::Image()</h2>
+    <p class="subtitle">Rendering your OpenGL texture inside an ImGui window</p>
+
+    <p>After all the setup, displaying the frame is two lines. ImGui::Image() takes the texture ID and a display size — it emits a textured rectangle into ImGui's draw list and the OpenGL backend does the rest.</p>
+
+<pre><span class="comment">// Inside an ImGui window, every frame:</span>
+<span class="type">ImGui</span>::<span class="call">Image</span>(
+    (<span class="type">ImTextureID</span>)(<span class="type">uintptr_t</span>)texId,  <span class="comment">// GL texture ID cast to void*</span>
+    <span class="type">ImVec2</span>(width, height)           <span class="comment">// display size in pixels</span>
+);</pre>
+
+    <h3>What ImGui::Image() actually does</h3>
+    <ol style="padding-left:1.4rem;">
+      <li style="margin-bottom:0.4rem;color:#8b949e;">Emits a textured quad into ImGui's draw list — a rectangle UV-mapped 0→1 across the whole texture.</li>
+      <li style="margin-bottom:0.4rem;color:#8b949e;">At render time, the OpenGL backend casts <code>ImTextureID</code> back to <code>GLuint</code>, calls <code>glBindTexture</code>, and issues a draw call.</li>
+      <li style="color:#8b949e;">The GPU samples your texture and fills the rectangle with your live camera frame.</li>
+    </ol>
+
+    <h3>Sizing — fill the window width</h3>
+<pre><span class="comment">// Scales to available window width, preserves 16:9 aspect ratio</span>
+<span class="keyword">float</span> avail = <span class="type">ImGui</span>::<span class="call">GetContentRegionAvail</span>().x;
+<span class="keyword">float</span> aspect = (<span class="keyword">float</span>)height / (<span class="keyword">float</span>)width;
+<span class="type">ImGui</span>::<span class="call">Image</span>((<span class="type">ImTextureID</span>)(<span class="type">uintptr_t</span>)texId, <span class="type">ImVec2</span>(avail, avail * aspect));</pre>
+
+    <h3>Why the double cast?</h3>
+    <p><code>ImTextureID</code> is <code>void*</code> — pointer-sized — so ImGui works with any backend (OpenGL, Vulkan, DirectX, Metal) without depending on any of them. <code>GLuint</code> is 32-bit. The cast first widens to <code>uintptr_t</code> (pointer size), then to <code>void*</code>. The backend reverses it. This is the standard pattern in every ImGui + OpenGL example.</p>
+
+    <h3>Full render loop — all 5 concepts together</h3>
+<pre><span class="comment">// 1. Poll for a new camera frame and upload to GPU</span>
+<span class="keyword">auto</span> frame = queue-&gt;<span class="call">tryGet</span>&lt;<span class="type">dai::ImgFrame</span>&gt;();
+<span class="keyword">if</span> (frame) {
+    <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId);
+    <span class="call">glTexSubImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>,
+        width, height, GL_BGR, GL_UNSIGNED_BYTE,
+        frame-&gt;<span class="call">getData</span>().<span class="call">data</span>());
+}
+
+<span class="comment">// 2. Render the ImGui frame</span>
+<span class="type">ImGui</span>::<span class="call">NewFrame</span>();
+<span class="type">ImGui</span>::<span class="call">Begin</span>(<span class="string">"Camera"</span>);
+<span class="keyword">float</span> avail = <span class="type">ImGui</span>::<span class="call">GetContentRegionAvail</span>().x;
+<span class="keyword">float</span> aspect = (<span class="keyword">float</span>)height / (<span class="keyword">float</span>)width;
+<span class="type">ImGui</span>::<span class="call">Image</span>((<span class="type">ImTextureID</span>)(<span class="type">uintptr_t</span>)texId, <span class="type">ImVec2</span>(avail, avail * aspect));
+<span class="type">ImGui</span>::<span class="call">End</span>();
+<span class="type">ImGui</span>::<span class="call">Render</span>();
+<span class="comment">// ... swap buffers</span></pre>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="section" id="architecture">
+    <h2>Stage 2 Architecture</h2>
+    <p class="subtitle">What's new, what changes, and what stays the same</p>
+
+    <div class="file-tree">
+      oak-explorer/<br>
+      ├── src/<br>
+      │&nbsp;&nbsp; ├── <span class="file">main.cpp</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--yellow);">← modified</span> <span class="note">— owns dai::Device and texture lifetime</span><br>
+      │&nbsp;&nbsp; ├── oak/<br>
+      │&nbsp;&nbsp; │&nbsp;&nbsp; ├── <span class="file">Device.h/cpp</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--yellow);">← modified</span> <span class="note">— adds pipeline build + device open/close</span><br>
+      │&nbsp;&nbsp; │&nbsp;&nbsp; └── <span style="color:var(--green);">CameraStream.h/cpp</span> <span style="color:var(--green);">← new</span> &nbsp;&nbsp;&nbsp;<span class="note">— owns texture, polls queue, uploads to GL</span><br>
+      │&nbsp;&nbsp; └── ui/<br>
+      │&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <span class="file">Sidebar.cpp</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--yellow);">← modified</span> <span class="note">— shows "Booted / in use" when streaming</span><br>
+      │&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <span style="color:var(--green);">StreamView.h/cpp</span> &nbsp;&nbsp;<span style="color:var(--green);">← new</span> &nbsp;&nbsp;&nbsp;<span class="note">— ImGui window with ImGui::Image()</span>
+    </div>
+
+    <h3>CameraStream — new oak/ class</h3>
+    <p>Owns everything depthai-related for Stage 2: builds the pipeline, opens <code>dai::Device</code>, gets the output queue, creates and owns the GL texture, and exposes a simple polling interface.</p>
+    <ul>
+      <li><strong>poll()</strong> — calls tryGet(), uploads frame if available</li>
+      <li><strong>textureId()</strong> — returns the GLuint for ImGui</li>
+      <li><strong>width() / height()</strong> — frame dimensions</li>
+      <li><strong>isStreaming()</strong> — true once the device is open</li>
+    </ul>
+
+    <h3>StreamView — new ui/ class</h3>
+    <p>Pure UI — knows nothing about depthai. Opens an ImGui window, calls <code>ImGui::Image()</code> with the texture ID from CameraStream, scales to fill available width. Takes <code>const CameraStream&</code> — read-only.</p>
+
+    <h3>What stays the same</h3>
+    <ul>
+      <li><strong>OakDevice</strong> — still polls for enumeration, still drives the Sidebar. The pipeline device open is separate.</li>
+      <li><strong>Sidebar</strong> — unchanged shape; will now show "Booted / in use" once the pipeline starts.</li>
+      <li><strong>main.cpp render loop</strong> — same structure, adds <code>stream.poll()</code> and <code>ui::renderStreamView(stream)</code>.</li>
+    </ul>
+
+    <div class="lesson">
+      <h4>Design principle — depthai and ImGui never touch</h4>
+      <p><strong>CameraStream owns depthai. StreamView owns ImGui.</strong> They communicate through a read-only interface: <code>textureId()</code>, <code>width()</code>, <code>height()</code>, <code>isStreaming()</code>. This boundary holds through all six stages.</p>
+    </div>
+  </div>
+
+  <div class="section" id="annotated-code">
+    <h2>Annotated Code</h2>
+    <div class="wip">Content coming — walkthrough in progress</div>
+  </div>
+
+  <div class="section" id="gotchas">
+    <h2>Gotchas &amp; Lessons Learned</h2>
+    <div class="wip">Populated after implementation</div>
+  </div>
+
+  <div class="nav-links">
+    <a href="oak-stage1.html">← Stage 1 — Foundation</a>
+    <a href="oak-reference.html">Concepts Reference</a>
+    <a href="oak-stage3.html">Stage 3 — Depth &amp; Stereo →</a>
+  </div>
+
+</div>
+</body>
+</html>
