@@ -5,6 +5,9 @@
 namespace ui {
 
 void renderStreamView(const oak::CameraStream& stream) {
+    // Default to right side of window on first run (before imgui.ini is saved)
+    ImGui::SetNextWindowPos(ImVec2(240, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(900, 540), ImGuiCond_FirstUseEver);
     ImGui::Begin("Camera");
 
     if (stream.isStreaming()) {
