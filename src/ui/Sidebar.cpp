@@ -4,7 +4,7 @@
 
 namespace ui {
 
-void renderSidebar(const oak::OakDevice& device) {
+void renderSidebar(const oak::OakDevice& device, const oak::CameraStream& stream) {
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(220, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
 
@@ -37,13 +37,16 @@ void renderSidebar(const oak::OakDevice& device) {
         // State: UNBOOTED = visible but no pipeline running (normal for Stage 1)
         //        BOOTED   = pipeline active (Stage 2+)
         ImGui::TextDisabled("State");
-        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
-            info.available ? "Unbooted (ready)" : "Booted / in use");
-        ImGui::Spacing();
-
-        if (!info.available) {
-            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "(claimed by a process)");
+        if (stream.isStreaming()) {
+            ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "Streaming");
+        } else {
+            ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
+                info.available ? "Unbooted (ready)" : "Booted / in use");
+            if (!info.available) {
+                ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.1f, 1.0f), "(claimed by a process)");
+            }
         }
+        ImGui::Spacing();
     } else {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
         ImGui::Bullet();
