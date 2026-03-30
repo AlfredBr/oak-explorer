@@ -4,8 +4,10 @@
     {
       "name": "windows-debug",
       "displayName": "Windows Debug",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/out/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -19,8 +21,10 @@
     {
       "name": "windows-release",
       "displayName": "Windows Release",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/out/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
