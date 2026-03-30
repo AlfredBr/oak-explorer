@@ -64,7 +64,7 @@ Standalone HTML files — open directly in a browser, no server needed.
 | [GLFW](https://www.glfw.org/) | 3.4 | Prebuilt Win64 binaries |
 | [Dear ImGui](https://github.com/ocornut/imgui) | docking branch | **Must be the `docking` branch** — master/release zips do not include `DockSpaceOverViewport` |
 | CMake | 3.20+ | |
-| Visual Studio 2022 | | C++17, MSVC |
+| Visual Studio 2022 / 2026 | | C++17, MSVC |
 
 ---
 
@@ -105,13 +105,25 @@ Update the paths to match your dependency locations:
 }
 ```
 
-### 5. Open in Visual Studio 2022
+### 5. Open in Visual Studio and build
 
 **File → Open → Folder** (not "Open Solution") — point it at the `oak-explorer` folder.
 
-VS2022 reads `CMakePresets.json` automatically. Select `windows-debug` from the configuration dropdown and build (Ctrl+Shift+B).
+VS reads `CMakePresets.json` automatically. Select `windows-debug` from the configuration dropdown and build (Ctrl+Shift+B).
 
 > The POST_BUILD step copies depthai's DLLs (including `libusb-1.0.dll`) next to the executable automatically.
+
+#### VS2026 Insiders — command-line build workaround
+
+VS2026 Insiders has a bug where CMake re-runs triggered by MSBuild lose the preset's `cacheVariables` (depthai_DIR is not passed). Use the terminal instead:
+
+```bash
+cmake --preset windows-release
+cmake --build out/build/release --config Release
+# exe: out\build\release\Release\oak-explorer.exe
+```
+
+Debug builds work normally through the VS UI.
 
 ---
 
