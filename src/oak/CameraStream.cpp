@@ -2,7 +2,7 @@
 #include "oak/CameraStream.h"
 
 #include <depthai/depthai.hpp>
-#include <GL/GL.h>
+#include <GLFW/glfw3.h>   // includes GL with correct Windows setup (replaces GL/GL.h)
 
 #include <cstdio>
 
