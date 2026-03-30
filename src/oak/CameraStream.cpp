@@ -18,7 +18,7 @@ void CameraStream::open() {
 
         auto cam = pipeline.create<dai::node::ColorCamera>();
         cam->setPreviewSize(width_, height_);  // 1280×720 — within OAK-D-Lite preview bandwidth
-        cam->setInterleaved(false);
+        cam->setInterleaved(true);   // GL_RGB expects interleaved (RGBRGB…); false = planar (CHW) which causes tiling
         cam->setColorOrder(dai::ColorCameraProperties::ColorOrder::RGB);  // GL_BGR is NOT valid in OpenGL 3.3 core profile — must use RGB
         cam->setFps(30);
 
@@ -39,6 +39,8 @@ void CameraStream::open() {
         glBindTexture(GL_TEXTURE_2D, texId_);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
             width_, height_, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
