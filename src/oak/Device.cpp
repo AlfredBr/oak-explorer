@@ -7,6 +7,11 @@
 namespace oak {
 
 void OakDevice::poll() {
+    // USB enumeration is slow (~200ms) — only run once per second
+    auto now = std::chrono::steady_clock::now();
+    if (now - lastPoll_ < std::chrono::seconds(1)) return;
+    lastPoll_ = now;
+
     try {
         // getAllConnectedDevices is on XLinkConnection in depthai v2.17.3
         const auto connected = dai::XLinkConnection::getAllConnectedDevices();

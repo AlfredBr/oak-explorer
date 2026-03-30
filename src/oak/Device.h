@@ -1,6 +1,7 @@
 // src/oak/Device.h
 #pragma once
 #include <string>
+#include <chrono>
 
 namespace oak {
 
@@ -22,6 +23,7 @@ public:
 private:
     bool connected_ = false;
     DeviceInfo info_;
+    std::chrono::steady_clock::time_point lastPoll_{};  // throttle USB enumeration
 };
 
 } // namespace oak
