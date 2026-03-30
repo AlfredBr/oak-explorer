@@ -4,10 +4,8 @@
     {
       "name": "windows-debug",
       "displayName": "Windows Debug",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
       "binaryDir": "${sourceDir}/out/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -21,10 +19,8 @@
     {
       "name": "windows-release",
       "displayName": "Windows Release",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
       "binaryDir": "${sourceDir}/out/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
