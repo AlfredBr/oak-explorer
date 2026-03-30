@@ -9,6 +9,7 @@
       "binaryDir": "${sourceDir}/out/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CONFIGURATION_TYPES": "Debug",
         "depthai_DIR": "E:/luxonis/depthai-win64/lib/cmake/depthai",
         "DEPTHAI_WIN64_DIR": "E:/luxonis/depthai-win64",
         "GLFW_ROOT": "E:/luxonis/glfw-win64",
@@ -23,6 +24,7 @@
       "binaryDir": "${sourceDir}/out/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CONFIGURATION_TYPES": "Release",
         "depthai_DIR": "E:/luxonis/depthai-win64/lib/cmake/depthai",
         "DEPTHAI_WIN64_DIR": "E:/luxonis/depthai-win64",
         "GLFW_ROOT": "E:/luxonis/glfw-win64",
