@@ -29,7 +29,7 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
   - Boot state: "Unbooted (ready)" or "Booted / in use"
 - `OakDevice` wrapper that polls `dai::XLinkConnection::getAllConnectedDevices()` once per frame without throwing
 
-![Stage 1 screenshot — sidebar showing Connected, MX ID, and Unbooted state](docs/stage1.png)
+![Stage 1 screenshot — sidebar showing Connected, MX ID, and Unbooted state](stage1.png)
 
 ---
 
