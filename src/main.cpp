@@ -5,7 +5,9 @@
 #include <GLFW/glfw3.h>
 
 #include "oak/Device.h"
+#include "oak/CameraStream.h"
 #include "ui/Sidebar.h"
+#include "ui/StreamView.h"
 
 #include <cstdio>
 
@@ -32,31 +34,36 @@ int main() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;   // enable docking
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
-    oak::OakDevice device;
+    // OpenGL context is now active — safe to create GL resources
+    oak::OakDevice   device;
+    oak::CameraStream stream;
+    stream.open();
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        // Poll device state once per frame
+        // Poll device state and camera frames — before ImGui frame
         device.poll();
+        stream.poll();
 
         // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Full-screen dockspace (ImGui v1.92+ signature: id, viewport, flags)
+        // Full-screen dockspace
         ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
             ImGuiDockNodeFlags_PassthruCentralNode);
 
-        // Render sidebar
-        ui::renderSidebar(device);
+        // Render UI panels
+        ui::renderSidebar(device, stream);
+        ui::renderStreamView(stream);
 
         // Render and present
         ImGui::Render();
@@ -69,7 +76,10 @@ int main() {
         glfwSwapBuffers(window);
     }
 
-    // Cleanup
+    // Cleanup — close stream before ImGui/GLFW teardown
+    // GL resources (texture) must be freed while the OpenGL context is still active.
+    // ImGui_ImplOpenGL3_Shutdown and glfwDestroyWindow destroy the context.
+    stream.close();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
