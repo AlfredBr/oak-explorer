@@ -29,7 +29,9 @@ set(IMGUI_SOURCES
 add_executable(oak-explorer
     src/main.cpp
     src/oak/Device.cpp
+    src/oak/CameraStream.cpp
     src/ui/Sidebar.cpp
+    src/ui/StreamView.cpp
     ${IMGUI_SOURCES}
 )
 
