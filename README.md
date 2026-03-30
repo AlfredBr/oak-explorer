@@ -1,5 +1,7 @@
 # oak-explorer
 
+(This README.md was written 99% by Claude.  I'll rewrite this when the code is in better shape...)
+
 A C++ learning harness for the [Luxonis OAK-D-Lite](https://shop.luxonis.com/products/oak-d-lite) depth camera.
 
 Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing application across six stages, understanding every line rather than copying demo code.
