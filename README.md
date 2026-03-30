@@ -29,7 +29,18 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
   - Boot state: "Unbooted (ready)" or "Booted / in use"
 - `OakDevice` wrapper that polls `dai::XLinkConnection::getAllConnectedDevices()` once per frame without throwing
 
-![Stage 1 screenshot — sidebar showing Connected, MX ID, and Unbooted state](/stage1.png)
+![Stage 1 screenshot — sidebar showing Connected, MX ID, and Unbooted state](docs/stage1.png)
+
+---
+
+## Reference Documentation
+
+Standalone HTML files — open directly in a browser, no server needed.
+
+| File | Contents |
+|---|---|
+| [`docs/reference/oak-reference.html`](docs/reference/oak-reference.html) | Timeless concepts: pipeline mental model, node types, data flow, 6-stage overview |
+| [`docs/reference/oak-stage1.html`](docs/reference/oak-stage1.html) | Stage 1 deep-dive: what we built, annotated code, all gotchas encountered |
 
 ---
 

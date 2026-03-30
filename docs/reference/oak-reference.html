@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OAK-D-Lite Reference — oak-explorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b26;
+    --bg3: #1e2535;
+    --border: rgba(255,255,255,0.08);
+    --text: #e2e8f0;
+    --muted: rgba(255,255,255,0.45);
+    --blue: #4f8ef7;
+    --green: #50c878;
+    --yellow: #ffb432;
+    --purple: #c864c8;
+    --accent-bg-blue: rgba(79,142,247,0.12);
+    --accent-bg-green: rgba(80,200,120,0.12);
+    --accent-bg-yellow: rgba(255,180,50,0.12);
+    --accent-bg-purple: rgba(200,100,200,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 2rem 1rem;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+
+  /* Nav */
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .toc h2 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+  .toc ol { padding-left: 1.25rem; }
+  .toc li { margin-bottom: 0.3rem; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Section */
+  .section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .section + .section { }
+  h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.35rem; }
+  h2 { font-size: 1.35rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); }
+  h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+  .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+    font-weight: 600;
+  }
+  p { margin-bottom: 0.85rem; }
+  p:last-child { margin-bottom: 0; }
+  code {
+    background: rgba(255,255,255,0.08);
+    padding: 0.15em 0.4em;
+    border-radius: 3px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88em;
+  }
+  pre {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.75;
+    margin: 1rem 0;
+  }
+  .comment { color: #6b7fa3; }
+  .string { color: #a0d4ff; }
+
+  /* Callout */
+  .callout {
+    background: var(--bg3);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 6px 6px 0;
+    padding: 0.85rem 1rem;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  .callout.green { border-color: var(--green); }
+  .callout.yellow { border-color: var(--yellow); }
+
+  /* Stages */
+  .stage-grid {
+    display: grid;
+    grid-template-columns: 2.25rem 1fr;
+    gap: 0.75rem 1rem;
+    align-items: start;
+  }
+  .stage-num {
+    background: var(--blue);
+    color: white;
+    border-radius: 50%;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+  .stage-body strong { display: block; margin-bottom: 0.2rem; }
+  .stage-body { padding-top: 0.35rem; }
+
+  /* Node types */
+  .node-types {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  .node-type {
+    border-radius: 6px;
+    padding: 0.85rem;
+    text-align: center;
+  }
+  .node-type.blue { background: var(--accent-bg-blue); border: 1px solid rgba(79,142,247,0.35); }
+  .node-type.green { background: var(--accent-bg-green); border: 1px solid rgba(80,200,120,0.35); }
+  .node-type.yellow { background: var(--accent-bg-yellow); border: 1px solid rgba(255,180,50,0.35); }
+  .node-type h3 { margin-bottom: 0.35rem; }
+  .node-type h3.blue { color: var(--blue); }
+  .node-type h3.green { color: var(--green); }
+  .node-type h3.yellow { color: var(--yellow); }
+  .node-type .examples { font-family: monospace; font-size: 0.8rem; opacity: 0.75; line-height: 1.8; }
+  .node-type .role { font-size: 0.7rem; color: var(--muted); margin-top: 0.5rem; }
+
+  /* Pipeline diagram */
+  .pipeline-flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 1.25rem;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+  .arrow { font-size: 1.4rem; color: var(--muted); align-self: center; flex-shrink: 0; padding: 0 0.25rem; }
+  .node-box {
+    border-radius: 6px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.8rem;
+    min-width: 130px;
+    flex-shrink: 0;
+  }
+  .node-box.blue { background: var(--accent-bg-blue); border: 1px solid var(--blue); }
+  .node-box.green { background: var(--accent-bg-green); border: 1px solid var(--green); }
+  .node-box.yellow { background: var(--accent-bg-yellow); border: 1px solid var(--yellow); }
+  .node-box.purple { background: var(--accent-bg-purple); border: 1px solid var(--purple); }
+  .node-box .node-title { font-weight: 700; margin-bottom: 0.4rem; }
+  .node-box.blue .node-title { color: var(--blue); }
+  .node-box.green .node-title { color: var(--green); }
+  .node-box.yellow .node-title { color: var(--yellow); }
+  .node-box.purple .node-title { color: var(--purple); }
+  .node-box .ports { font-size: 0.72rem; line-height: 1.7; opacity: 0.7; }
+  .node-box .port-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.45; margin-top: 0.35rem; margin-bottom: 0.1rem; }
+  .node-stack { display: flex; flex-direction: column; gap: 0.5rem; flex-shrink: 0; }
+
+  /* Three rules */
+  .rules ol { padding-left: 1.25rem; }
+  .rules li { margin-bottom: 0.65rem; line-height: 1.5; }
+
+  /* Project layout */
+  .file-tree {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.85;
+  }
+  .file-tree .dir { color: var(--blue); }
+  .file-tree .file { color: var(--text); }
+  .file-tree .note { color: var(--muted); }
+
+  /* Gotchas */
+  .gotcha {
+    background: rgba(255,180,50,0.08);
+    border: 1px solid rgba(255,180,50,0.25);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.65rem;
+    font-size: 0.9rem;
+  }
+  .gotcha strong { color: var(--yellow); }
+
+  /* Rhythm */
+  .rhythm {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+  }
+  .rhythm-step {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.3rem 0.85rem;
+  }
+  .rhythm-arrow { color: var(--muted); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0 1.25rem; }
+
+  @media (max-width: 600px) {
+    .node-types { grid-template-columns: 1fr; }
+    .section { padding: 1.25rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div style="margin-bottom: 2rem;">
+    <h1>OAK-D-Lite Reference</h1>
+    <p class="subtitle">oak-explorer learning plan — mental models, pipeline architecture, project structure</p>
+  </div>
+
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#mental-model">The DepthAI Pipeline Mental Model</a></li>
+      <li><a href="#node-types">Node Types</a></li>
+      <li><a href="#pipeline-diagram">Pipeline Diagram — Depth Example</a></li>
+      <li><a href="#annotated-code">Annotated C++ — Building a Pipeline</a></li>
+      <li><a href="#gotchas">Three Things That Trip Everyone Up</a></li>
+      <li><a href="#learning-plan">The oak-explorer Learning Plan</a></li>
+      <li><a href="#project-structure">Project Structure</a></li>
+      <li><a href="#learning-rhythm">Learning Rhythm</a></li>
+      <li><a href="#stage-detail">Stage-by-Stage Detail</a></li>
+    </ol>
+  </div>
+
+  <!-- MENTAL MODEL -->
+  <div class="section" id="mental-model">
+    <h2>The DepthAI Pipeline Mental Model</h2>
+    <p class="subtitle">The one concept that makes everything else make sense</p>
+    <p>A DepthAI pipeline is a <strong>directed graph of nodes</strong> that runs on the device. You build the graph on the host (your PC), upload it, and the OAK executes it. Your host code just reads named output queues.</p>
+    <div class="callout">
+      <strong>The lifecycle in three words:</strong> Build → Upload → Consume.<br>
+      Steps 1–5 in any DepthAI program describe a graph. Nothing runs until <code>dai::Device device(pipeline)</code>. After that, your host only ever reads queues.
+    </div>
+    <p>This is why demos looked like magic — there's a clean boundary between <em>graph construction</em> (on your machine) and <em>graph execution</em> (on the OAK's VPU/ISP). Once you see that boundary, everything falls into place.</p>
+  </div>
+
+  <!-- NODE TYPES -->
+  <div class="section" id="node-types">
+    <h2>Node Types</h2>
+    <p class="subtitle">Every node in a pipeline is one of three kinds</p>
+    <div class="node-types">
+      <div class="node-type blue">
+        <h3 class="blue">Sources</h3>
+        <div class="examples">ColorCamera<br>MonoCamera<br>XLinkIn</div>
+        <div class="role">Produce frames or data.<br>Run on the OAK hardware.</div>
+      </div>
+      <div class="node-type green">
+        <h3 class="green">Processors</h3>
+        <div class="examples">StereoDepth<br>NeuralNetwork<br>ImageManip<br>SpatialLocationCalculator</div>
+        <div class="role">Transform data between nodes.<br>Run on OAK VPU/ISP.</div>
+      </div>
+      <div class="node-type yellow">
+        <h3 class="yellow">Outputs</h3>
+        <div class="examples">XLinkOut<br>(named queues)</div>
+        <div class="role">Send data from device<br>to host over USB.</div>
+      </div>
+    </div>
+    <p>There is also <code>XLinkIn</code> — the reverse: send data <em>from host to device</em> (e.g., camera controls, config updates at runtime).</p>
+  </div>
+
+  <!-- PIPELINE DIAGRAM -->
+  <div class="section" id="pipeline-diagram">
+    <h2>Pipeline Diagram — Depth + RGB Example</h2>
+    <p class="subtitle">What Stage 3 of oak-explorer looks like as a graph</p>
+    <div class="pipeline-flow">
+      <div class="node-stack">
+        <div class="node-box blue">
+          <div class="node-title">ColorCamera</div>
+          <div class="port-label">outputs</div>
+          <div class="ports">→ video<br>→ preview<br>→ isp</div>
+        </div>
+        <div class="node-box blue">
+          <div class="node-title">MonoCamera (L)</div>
+          <div class="port-label">outputs</div>
+          <div class="ports">→ out</div>
+        </div>
+        <div class="node-box blue">
+          <div class="node-title">MonoCamera (R)</div>
+          <div class="port-label">outputs</div>
+          <div class="ports">→ out</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node-box green" style="align-self:center;">
+        <div class="node-title">StereoDepth</div>
+        <div class="port-label">inputs</div>
+        <div class="ports">← left<br>← right</div>
+        <div class="port-label">outputs</div>
+        <div class="ports">→ depth<br>→ disparity<br>→ rectifiedLeft</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node-stack">
+        <div class="node-box yellow">
+          <div class="node-title">XLinkOut</div>
+          <div class="ports">streamName: "rgb"</div>
+        </div>
+        <div class="node-box yellow">
+          <div class="node-title">XLinkOut</div>
+          <div class="ports">streamName: "depth"</div>
+        </div>
+        <div class="node-box yellow">
+          <div class="node-title">XLinkOut</div>
+          <div class="ports">streamName: "disparity"</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node-box purple" style="align-self:center;">
+        <div class="node-title">Host (your PC)</div>
+        <div class="ports">
+          getOutputQueue("rgb")<br>
+          getOutputQueue("depth")<br>
+          getOutputQueue("disparity")<br>
+          <br>
+          → ImGui texture<br>
+          → CUDA kernel
+        </div>
+      </div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--muted);">Each XLinkOut is a separate named queue. You need one per stream you want on the host.</p>
+  </div>
+
+  <!-- ANNOTATED CODE -->
+  <div class="section" id="annotated-code">
+    <h2>Annotated C++ — Building a Pipeline</h2>
+    <p class="subtitle">Every line maps to something in the graph above</p>
+<pre><span class="comment">// 1. Create the pipeline — just a description, nothing runs yet</span>
+dai::Pipeline pipeline;
+
+<span class="comment">// 2. Create nodes — objects in the graph</span>
+auto camRgb    = pipeline.create&lt;dai::node::ColorCamera&gt;();
+auto monoLeft  = pipeline.create&lt;dai::node::MonoCamera&gt;();
+auto monoRight = pipeline.create&lt;dai::node::MonoCamera&gt;();
+auto stereo    = pipeline.create&lt;dai::node::StereoDepth&gt;();
+auto xoutRgb   = pipeline.create&lt;dai::node::XLinkOut&gt;();
+auto xoutDepth = pipeline.create&lt;dai::node::XLinkOut&gt;();
+
+<span class="comment">// 3. Configure nodes — set properties BEFORE linking</span>
+camRgb-&gt;setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
+monoLeft-&gt;setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
+monoLeft-&gt;setCamera(<span class="string">"left"</span>);    <span class="comment">// physical camera socket</span>
+monoRight-&gt;setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
+monoRight-&gt;setCamera(<span class="string">"right"</span>);
+stereo-&gt;setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
+
+<span class="comment">// 4. Name the output queues — how you retrieve data on the host</span>
+xoutRgb-&gt;setStreamName(<span class="string">"rgb"</span>);
+xoutDepth-&gt;setStreamName(<span class="string">"depth"</span>);
+
+<span class="comment">// 5. Link the ports — THIS is the graph wiring</span>
+<span class="comment">//    always: source.outputPort.link(destination.inputPort)</span>
+monoLeft-&gt;out.link(stereo-&gt;left);
+monoRight-&gt;out.link(stereo-&gt;right);
+camRgb-&gt;video.link(xoutRgb-&gt;input);
+stereo-&gt;depth.link(xoutDepth-&gt;input);
+
+<span class="comment">// 6. Start the device — NOW it uploads the graph and runs on the OAK</span>
+dai::Device device(pipeline);
+
+<span class="comment">// 7. Get host-side queue handles — your only touch points from here on</span>
+auto rgbQueue   = device.getOutputQueue(<span class="string">"rgb"</span>,   4, false); <span class="comment">// maxSize=4, blocking=false</span>
+auto depthQueue = device.getOutputQueue(<span class="string">"depth"</span>, 4, false);
+
+<span class="comment">// 8. The render/consume loop</span>
+while (running) {
+    auto rgbFrame   = rgbQueue-&gt;get&lt;dai::ImgFrame&gt;();  <span class="comment">// blocks until frame ready</span>
+    auto depthFrame = depthQueue-&gt;get&lt;dai::ImgFrame&gt;();
+
+    <span class="comment">// rgbFrame-&gt;getCvFrame()  → cv::Mat  (8-bit BGR)</span>
+    <span class="comment">// depthFrame-&gt;getData()   → raw uint16 buffer (depth in mm)</span>
+    <span class="comment">// depthFrame-&gt;getWidth(), getHeight() for dimensions</span>
+}</pre>
+  </div>
+
+  <!-- GOTCHAS -->
+  <div class="section" id="gotchas">
+    <h2>Three Things That Trip Everyone Up</h2>
+    <div class="gotcha">
+      <strong>1. Linking direction</strong> — always <code>source.outputPort.link(dest.inputPort)</code>. Never reversed. If you try to link backwards the API will throw at runtime.
+    </div>
+    <div class="gotcha">
+      <strong>2. One XLinkOut per stream</strong> — you cannot have two consumers of the same queue. If you want both <code>depth</code> and <code>disparity</code> on the host, create two separate XLinkOut nodes with different stream names.
+    </div>
+    <div class="gotcha">
+      <strong>3. blocking=false, maxSize=4</strong> — this is the right default for a render loop. <code>blocking=true</code> stalls your UI thread if the OAK produces frames faster than you consume them. Use <code>tryGet()</code> instead of <code>get()</code> if you want non-blocking poll.
+    </div>
+  </div>
+
+  <!-- LEARNING PLAN -->
+  <div class="section" id="learning-plan">
+    <h2>The oak-explorer Learning Plan</h2>
+    <p class="subtitle">Six stages — one growing application</p>
+    <p>Everything is built into a single ImGui application called <code>oak-explorer</code>. Each stage adds a panel or feature. Nothing gets thrown away.</p>
+    <hr>
+    <div class="stage-grid">
+      <div class="stage-num">1</div>
+      <div class="stage-body">
+        <strong>Foundation</strong>
+        CMake project, ImGui + OpenGL window, depthai-core linked. Device connect/disconnect detection. Understand what the pipeline IS before using it. This stage produces a working window that shows device status.
+      </div>
+
+      <div class="stage-num">2</div>
+      <div class="stage-body">
+        <strong>Camera Streams</strong>
+        RGB and mono camera nodes. Understand sources, queues, and frame packets. Display live frames in ImGui as GPU textures. Know exactly what data you're receiving and why.
+      </div>
+
+      <div class="stage-num">3</div>
+      <div class="stage-body">
+        <strong>Depth &amp; Stereo</strong>
+        StereoDepth node, disparity vs. depth, confidence maps. Visualize depth as a heatmap. Understand the math: <code>Z = (f × B) / disparity</code> — focal length, baseline, disparity.
+      </div>
+
+      <div class="stage-num">4</div>
+      <div class="stage-body">
+        <strong>Spatial Data</strong>
+        SpatialLocationCalculator, 3D point extraction, coordinate systems. Click a pixel in the RGB view, get its XYZ in world space. Overlay live measurements.
+      </div>
+
+      <div class="stage-num">5</div>
+      <div class="stage-body">
+        <strong>CUDA Acceleration</strong>
+        Copy frames to GPU memory, write custom CUDA kernels (custom colormap, edge filter, point cloud builder). Zero-copy OpenGL interop for display. GTX 3080 starts earning its keep.
+      </div>
+
+      <div class="stage-num">6</div>
+      <div class="stage-body">
+        <strong>Neural Inference</strong>
+        Deploy a model on the OAK's VPU (MobileNet, YOLO), receive detections, overlay on RGB. Optionally run a second model on the GTX 3080 for comparison or complementary inference.
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJECT STRUCTURE -->
+  <div class="section" id="project-structure">
+    <h2>Project Structure</h2>
+    <p class="subtitle"><code>E:\luxonis\oak-explorer\</code></p>
+    <div class="file-tree">
+<span class="dir">oak-explorer/</span>
+├── <span class="file">CMakeLists.txt</span>        <span class="note">← minimal; grows as deps are added</span>
+├── <span class="file">CMakePresets.json</span>     <span class="note">← VS2022 preset (Debug/Release, CUDA toggle)</span>
+├── <span class="dir">src/</span>
+│   ├── <span class="file">main.cpp</span>            <span class="note">← app entry point, ImGui render loop</span>
+│   ├── <span class="dir">oak/</span>
+│   │   ├── <span class="file">Device.h/cpp</span>    <span class="note">← wraps dai::Device, manages lifetime</span>
+│   │   └── <span class="file">Pipeline.h/cpp</span>  <span class="note">← stage-specific pipeline configs</span>
+│   ├── <span class="dir">ui/</span>
+│   │   ├── <span class="file">StreamView.h</span>    <span class="note">← Stage 2: live camera textures</span>
+│   │   ├── <span class="file">DepthView.h</span>     <span class="note">← Stage 3: depth heatmap + controls</span>
+│   │   ├── <span class="file">SpatialView.h</span>   <span class="note">← Stage 4: 3D point picker</span>
+│   │   └── <span class="file">InferView.h</span>     <span class="note">← Stage 6: detection overlays</span>
+│   └── <span class="dir">gpu/</span>
+│       ├── <span class="file">CudaFrame.h</span>     <span class="note">← Stage 5: CUDA/OpenGL interop</span>
+│       └── <span class="file">kernels.cu</span>      <span class="note">← Stage 5: custom CUDA kernels</span>
+└── <span class="dir">third_party/</span>
+    ├── <span class="dir">imgui/</span>              <span class="note">← ImGui + OpenGL3 backend</span>
+    └── <span class="dir">implot/</span>             <span class="note">← (optional) plots for depth histograms</span>
+    </div>
+  </div>
+
+  <!-- LEARNING RHYTHM -->
+  <div class="section" id="learning-rhythm">
+    <h2>Learning Rhythm</h2>
+    <p class="subtitle">Repeated for each stage</p>
+    <div class="rhythm">
+      <div class="rhythm-step">📖 Short concept brief</div>
+      <div class="rhythm-arrow">→</div>
+      <div class="rhythm-step">⚙️ Implement in oak-explorer</div>
+      <div class="rhythm-arrow">→</div>
+      <div class="rhythm-step">🔍 Inspect live output</div>
+      <div class="rhythm-arrow">→</div>
+      <div class="rhythm-step">🧪 Experiment with ImGui sliders</div>
+    </div>
+    <div class="callout green">
+      The key to retention: <strong>every concept immediately becomes something visible and interactive</strong>. If you understand it, you can change a slider and see it change. If the slider doesn't do what you expect — that's the learning.
+    </div>
+  </div>
+
+  <!-- STAGE DETAIL -->
+  <div class="section" id="stage-detail">
+    <h2>Stage-by-Stage Detail</h2>
+    <p class="subtitle">What you build, what you learn, and what "done" looks like</p>
+    <div style="display:flex;flex-direction:column;gap:1.1rem;margin-top:0.5rem;">
+
+      <div style="border:1px solid rgba(79,142,247,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(79,142,247,0.06);">
+        <h3 style="color:var(--blue);margin-bottom:0.6rem;">Stage 1 — Foundation: The Harness</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>CMake project + VS2022 preset</li><li>ImGui + OpenGL3 window</li><li>depthai-core linked</li><li>Device status sidebar panel</li><li>Connect/disconnect detection</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>CMakePresets.json structure</li><li>ImGui render loop pattern</li><li>OpenGL context setup</li><li>dai::DeviceBase enumeration</li><li>C++ app structure</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">A window opens. Sidebar shows device name, MX ID, connection status. Green dot = connected. Every line written by you.</p></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid rgba(80,200,120,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(80,200,120,0.06);">
+        <h3 style="color:var(--green);margin-bottom:0.6rem;">Stage 2 — Camera Streams: First Live Frames</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>ColorCamera pipeline node</li><li>Frame → OpenGL texture upload</li><li>RGB stream panel in ImGui</li><li>FPS counter + resolution display</li><li>Exposure/ISO sliders (XLinkIn)</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>Pipeline build/upload lifecycle</li><li>ImgFrame packet structure</li><li>getCvFrame() vs getData()</li><li>OpenGL texture from CPU buffer</li><li>XLinkIn for runtime control</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">Live RGB stream in ImGui. A slider changes exposure in real time. You can see frame dimensions and FPS. You understand every byte.</p></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid rgba(255,180,50,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(255,180,50,0.06);">
+        <h3 style="color:var(--yellow);margin-bottom:0.6rem;">Stage 3 — Depth &amp; Stereo: Seeing Distance</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>Mono cameras + StereoDepth node</li><li>Depth heatmap panel (JET colormap)</li><li>Colormap selector dropdown</li><li>Confidence threshold slider</li><li>Min/max depth range controls</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>Disparity vs depth (and why both exist)</li><li>Z = (f × B) / disparity math</li><li>uint16 depth buffer (mm units)</li><li>StereoDepth presets + trade-offs</li><li>Confidence maps and invalid pixels</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">RGB and depth heatmap side-by-side. Move your hand — watch colours change. Drag confidence slider — watch noise disappear.</p></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid rgba(200,100,200,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(200,100,200,0.06);">
+        <h3 style="color:var(--purple);margin-bottom:0.6rem;">Stage 4 — Spatial Data: Click to Measure</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>SpatialLocationCalculator node</li><li>Click-to-sample on RGB panel</li><li>XYZ readout panel (metres)</li><li>ROI overlay on stream</li><li>Multi-point measurement list</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>OAK coordinate system (X/Y/Z axes)</li><li>ROI-based depth averaging</li><li>Pixel → world space maths</li><li>Camera intrinsics (focal length, cx/cy)</li><li>SpatialImgDetection packet format</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">Click any point in RGB — get X, Y, Z in metres. Hold up a ruler and verify. The numbers should match reality.</p></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid rgba(224,85,85,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(224,85,85,0.06);">
+        <h3 style="color:#e05555;margin-bottom:0.6rem;">Stage 5 — CUDA Acceleration: GTX 3080 Joins In</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>Frame → CUDA device memory upload</li><li>Custom colormap kernel (.cu)</li><li>Edge detection kernel</li><li>CUDA → OpenGL interop (zero-copy)</li><li>GPU vs CPU timing panel</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>CUDA kernel launch syntax</li><li>cudaMemcpy2D for image buffers</li><li>OpenGL PBO interop pattern</li><li>Thread block / grid sizing for images</li><li>When GPU is actually faster (and when it isn't)</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">Toggle CPU vs GPU depth colouring in ImGui. Timing panel shows microseconds for each path. You wrote the kernel and chose the grid size.</p></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid rgba(100,200,255,0.3);border-radius:7px;padding:1rem 1.1rem;background:rgba(100,200,255,0.06);">
+        <h3 style="color:#64c8ff;margin-bottom:0.6rem;">Stage 6 — Neural Inference: The OAK Thinks</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;font-size:0.85rem;">
+          <div><div class="label">You Build</div><ul style="padding-left:1rem;line-height:1.9;"><li>NeuralNetwork node (MobileNet/YOLO)</li><li>Detection overlay on RGB panel</li><li>Label + confidence display</li><li>Spatial detections (bbox + XYZ)</li><li>(Optional) host-side GPU model</li></ul></div>
+          <div><div class="label">You Learn</div><ul style="padding-left:1rem;line-height:1.9;"><li>.blob model format (OpenVINO)</li><li>ImgDetections packet format</li><li>Linking camera → ImageManip → NN</li><li>SpatialDetectionNetwork node</li><li>VPU vs host GPU trade-offs</li></ul></div>
+          <div><div class="label">Milestone</div><p style="font-size:0.85rem;">Bounding boxes drawn live on RGB stream. Each detection shows label, confidence, and distance in metres. All inference runs on the OAK's VPU.</p></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p style="color:var(--muted);font-size:0.8rem;text-align:center;margin-top:2rem;">Generated 2026-03-29 · E:\luxonis\oak-reference.html</p>
+
+</div>
+</body>
+</html>

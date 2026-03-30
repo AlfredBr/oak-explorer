@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage 1 — Foundation | oak-explorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b26;
+    --bg3: #1e2535;
+    --border: rgba(255,255,255,0.08);
+    --text: #e2e8f0;
+    --muted: rgba(255,255,255,0.45);
+    --blue: #4f8ef7;
+    --green: #50c878;
+    --yellow: #ffb432;
+    --red: #f85149;
+    --purple: #c864c8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 2rem 1rem;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .toc h2 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+  .toc ol { padding-left: 1.25rem; }
+  .toc li { margin-bottom: 0.3rem; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .section h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.4rem; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+  code {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88em;
+    color: #79c0ff;
+  }
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.87em;
+    line-height: 1.6;
+    margin: 0.75rem 0;
+    color: #c9d1d9;
+  }
+  pre .comment { color: #6e7681; }
+  pre .keyword { color: #ff7b72; }
+  pre .type { color: #79c0ff; }
+  pre .string { color: #a5d6ff; }
+  pre .call { color: #d2a8ff; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 6px;
+  }
+  .badge-done { background: rgba(80,200,120,0.15); color: var(--green); border: 1px solid rgba(80,200,120,0.3); }
+  .badge-gotcha { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .badge-lesson { background: rgba(79,142,247,0.15); color: var(--blue); border: 1px solid rgba(79,142,247,0.3); }
+  .badge-tag { background: rgba(200,100,200,0.15); color: var(--purple); border: 1px solid rgba(200,100,200,0.3); }
+  .file-tree {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.87em;
+    line-height: 1.9;
+    color: var(--muted);
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 0.75rem 0;
+  }
+  .file-tree .file { color: var(--text); }
+  .file-tree .note { color: #6e7681; }
+  .gotcha {
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.25);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 0.75rem 0;
+  }
+  .gotcha h4 { color: var(--red); font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .lesson {
+    background: rgba(79,142,247,0.08);
+    border: 1px solid rgba(79,142,247,0.25);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 0.75rem 0;
+  }
+  .lesson h4 { color: var(--blue); font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .header-strip {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stage-num-big {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: rgba(79,142,247,0.15);
+    border: 2px solid var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; font-weight: 800; color: var(--blue);
+    flex-shrink: 0;
+  }
+  .nav-links { margin-top: 2rem; display: flex; gap: 1rem; }
+  .nav-links a {
+    color: var(--blue);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 14px;
+    border: 1px solid rgba(79,142,247,0.3);
+    border-radius: 6px;
+  }
+  .nav-links a:hover { background: rgba(79,142,247,0.1); }
+  ul { padding-left: 1.4rem; }
+  ul li { margin-bottom: 0.3rem; }
+  p { margin-bottom: 0.75rem; }
+  p:last-child { margin-bottom: 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 0.75rem 0; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header-strip">
+    <div class="stage-num-big">1</div>
+    <div>
+      <h1 style="font-size: 1.6rem; font-weight: 800;">Stage 1 — Foundation</h1>
+      <p style="color: var(--muted); margin: 0;">ImGui harness · Device detection · No pipeline yet</p>
+    </div>
+    <div style="margin-left: auto; text-align: right;">
+      <span class="badge badge-done">✓ Complete</span>
+      <span class="badge badge-tag">stage-1-complete</span>
+    </div>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#goal">Goal</a></li>
+      <li><a href="#what-we-built">What We Built</a></li>
+      <li><a href="#file-map">File Map</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#annotated-code">Annotated Code</a></li>
+      <li><a href="#gotchas">Gotchas &amp; Lessons Learned</a></li>
+      <li><a href="#environment">Environment &amp; Dependencies</a></li>
+    </ol>
+  </nav>
+
+  <!-- GOAL -->
+  <div class="section" id="goal">
+    <h2>Goal</h2>
+    <p class="subtitle">What Stage 1 sets out to prove</p>
+    <p>Build a working ImGui + OpenGL3 + GLFW window that detects the OAK-D-Lite device and displays its status in a sidebar — every line authored from scratch, no copied demo code.</p>
+    <p>Stage 1 does <strong>not</strong> open a pipeline. It only enumerates the device over USB and reports its state. This forces you to understand what the device looks like <em>before</em> a pipeline is running — which is the normal starting state.</p>
+  </div>
+
+  <!-- WHAT WE BUILT -->
+  <div class="section" id="what-we-built">
+    <h2>What We Built</h2>
+    <p class="subtitle">The running application</p>
+    <div class="two-col">
+      <div>
+        <h3>Window</h3>
+        <ul>
+          <li>GLFW window, 1280×720</li>
+          <li>OpenGL 3.3 core profile context</li>
+          <li>ImGui docking layout enabled</li>
+          <li>Fixed 60fps render loop</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Sidebar (220px, left)</h3>
+        <ul>
+          <li>Green bullet + "Connected" when OAK is plugged in</li>
+          <li>Red bullet + "No device" when unplugged</li>
+          <li>MX ID of the connected device</li>
+          <li>State: "Unbooted (ready)" or "Booted / in use"</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top: 0.75rem;">The <code>OakDevice</code> wrapper calls <code>poll()</code> once per frame. It never throws — any depthai exception is caught internally and the device is marked disconnected.</p>
+  </div>
+
+  <!-- FILE MAP -->
+  <div class="section" id="file-map">
+    <h2>File Map</h2>
+    <div class="file-tree">
+      oak-explorer/<br>
+      ├── <span class="file">CMakeLists.txt</span>       <span class="note">← project definition, links depthai + GLFW + ImGui</span><br>
+      ├── <span class="file">CMakePresets.json</span>    <span class="note">← windows-debug / windows-release presets, paths to deps</span><br>
+      ├── src/<br>
+      │   ├── <span class="file">main.cpp</span>         <span class="note">← GLFW window, OpenGL context, ImGui render loop</span><br>
+      │   ├── oak/<br>
+      │   │   ├── <span class="file">Device.h</span>     <span class="note">← OakDevice interface (poll, isConnected, info)</span><br>
+      │   │   └── <span class="file">Device.cpp</span>   <span class="note">← depthai enumeration, try/catch, no-throw contract</span><br>
+      │   └── ui/<br>
+      │       ├── <span class="file">Sidebar.h</span>    <span class="note">← renderSidebar() declaration</span><br>
+      │       └── <span class="file">Sidebar.cpp</span>  <span class="note">← ImGui sidebar panel</span><br>
+      └── third_party/<br>
+          └── imgui/               <span class="note">← ImGui docking branch (vendored)</span>
+    </div>
+  </div>
+
+  <!-- KEY CONCEPTS -->
+  <div class="section" id="key-concepts">
+    <h2>Key Concepts</h2>
+    <p class="subtitle">What Stage 1 teaches you</p>
+
+    <h3>X_LINK_UNBOOTED — the normal starting state</h3>
+    <p>When the OAK is plugged in but no pipeline has been uploaded, it is in the <strong>Unbooted</strong> state. This is correct and expected. The device is visible to the host over USB, but the VPU is idle. Nothing is wrong.</p>
+    <p>Once you call <code>dai::Device device(pipeline)</code>, the VPU receives the graph and enters the <strong>Booted</strong> state. Only one process can hold a Booted device at a time.</p>
+
+    <h3>Two separate enumeration calls</h3>
+    <p>depthai has two different queries and they live on different classes:</p>
+    <ul>
+      <li><strong>All connected devices</strong> (plugged in, any state): <code>dai::XLinkConnection::getAllConnectedDevices()</code></li>
+      <li><strong>Available devices</strong> (unbooted, not claimed): <code>dai::DeviceBase::getAllAvailableDevices()</code></li>
+    </ul>
+    <p>To check if a specific device is available, compare by MX ID — don't just check if the available list is non-empty.</p>
+
+    <h3>ImGui immediate mode</h3>
+    <p>Every frame, you call <code>ImGui::Text()</code>, <code>ImGui::Bullet()</code>, etc. to describe what should appear. ImGui draws it and discards the description. There is no retained widget tree. If you stop calling a function, that widget disappears.</p>
+
+    <h3>The render loop shape</h3>
+    <p>The loop runs at ~60fps: poll GLFW events → clear OpenGL → start ImGui frame → call your UI functions → render ImGui → swap buffers. The device poll happens once per frame, before UI.</p>
+  </div>
+
+  <!-- ANNOTATED CODE -->
+  <div class="section" id="annotated-code">
+    <h2>Annotated Code</h2>
+    <p class="subtitle">The most important patterns from Stage 1</p>
+
+    <h3>Device.cpp — enumeration + no-throw contract</h3>
+<pre><span class="keyword">void</span> <span class="call">OakDevice::poll</span>() {
+    <span class="keyword">try</span> {
+        <span class="comment">// getAllConnectedDevices is on XLinkConnection, NOT DeviceBase</span>
+        <span class="keyword">const auto</span> connected = <span class="type">dai::XLinkConnection</span>::<span class="call">getAllConnectedDevices</span>();
+        <span class="keyword">if</span> (connected.<span class="call">empty</span>()) {
+            connected_ = <span class="keyword">false</span>;
+            info_ = {};
+            <span class="keyword">return</span>;
+        }
+
+        <span class="keyword">const auto</span>&amp; first = connected[0];
+        connected_ = <span class="keyword">true</span>;
+        info_.mxId = first.<span class="call">getMxId</span>();
+
+        <span class="comment">// Separately check if this specific device is available (not claimed)</span>
+        <span class="keyword">const auto</span> available = <span class="type">dai::DeviceBase</span>::<span class="call">getAllAvailableDevices</span>();
+        info_.available = <span class="type">std</span>::<span class="call">any_of</span>(available.<span class="call">begin</span>(), available.<span class="call">end</span>(),
+            [&amp;](<span class="keyword">const</span> <span class="type">dai::DeviceInfo</span>&amp; d) { <span class="keyword">return</span> d.<span class="call">getMxId</span>() == info_.mxId; }
+        );
+    } <span class="keyword">catch</span> (<span class="keyword">const</span> <span class="type">std::exception</span>&amp; e) {
+        connected_ = <span class="keyword">false</span>;
+        info_ = {};
+        <span class="call">fprintf</span>(stderr, <span class="string">"Device poll error: %s\n"</span>, e.<span class="call">what</span>());
+    } <span class="keyword">catch</span> (...) {
+        connected_ = <span class="keyword">false</span>;
+        info_ = {};
+    }
+}</pre>
+
+    <h3>Sidebar.cpp — status indicator with color</h3>
+<pre><span class="keyword">if</span> (device.<span class="call">isConnected</span>()) {
+    <span class="comment">// PushStyleColor changes the color of everything until PopStyleColor</span>
+    <span class="type">ImGui</span>::<span class="call">PushStyleColor</span>(ImGuiCol_Text, <span class="type">ImVec4</span>(0.2f, 0.9f, 0.3f, 1.0f)); <span class="comment">// green</span>
+    <span class="type">ImGui</span>::<span class="call">Bullet</span>();       <span class="comment">// use Bullet(), not "●" — default font is ASCII-only</span>
+    <span class="type">ImGui</span>::<span class="call">SameLine</span>();
+    <span class="type">ImGui</span>::<span class="call">Text</span>(<span class="string">"Connected"</span>);
+    <span class="type">ImGui</span>::<span class="call">PopStyleColor</span>();
+
+    <span class="type">ImGui</span>::<span class="call">TextDisabled</span>(<span class="string">"MX ID"</span>);
+    <span class="type">ImGui</span>::<span class="call">TextWrapped</span>(<span class="string">"%s"</span>, info.mxId.<span class="call">c_str</span>());
+
+    <span class="comment">// Human-readable state, not raw DeviceInfo.toString()</span>
+    <span class="type">ImGui</span>::<span class="call">TextColored</span>(..., info.available ? <span class="string">"Unbooted (ready)"</span> : <span class="string">"Booted / in use"</span>);
+}</pre>
+
+    <h3>main.cpp — ImGui docking setup</h3>
+<pre><span class="comment">// Must use ImGui DOCKING BRANCH — not master/release zip</span>
+io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+<span class="comment">// In render loop, before your windows:</span>
+<span class="comment">// ImGui v1.92+ signature requires explicit id (0 = use main viewport id)</span>
+<span class="type">ImGui</span>::<span class="call">DockSpaceOverViewport</span>(0, <span class="type">ImGui</span>::<span class="call">GetMainViewport</span>(),
+    ImGuiDockNodeFlags_PassthruCentralNode);</pre>
+  </div>
+
+  <!-- GOTCHAS -->
+  <div class="section" id="gotchas">
+    <h2>Gotchas &amp; Lessons Learned</h2>
+    <p class="subtitle">Everything that bit us during Stage 1</p>
+
+    <div class="gotcha">
+      <h4>ImGui docking is not in the master/release branch</h4>
+      <p><code>ImGuiConfigFlags_DockingEnable</code> and <code>DockSpaceOverViewport</code> only exist in the <strong>docking branch</strong>. Standard release zips from the GitHub releases page do not include them. You'll get compile errors about undeclared identifiers if you use the wrong version.</p>
+      <p style="margin-top: 0.5rem;"><strong>Fix:</strong> Download from <code>github.com/ocornut/imgui/archive/refs/heads/docking.zip</code></p>
+    </div>
+
+    <div class="gotcha">
+      <h4>depthai v2.17.3 is missing libusb-1.0.dll on Windows</h4>
+      <p>The v2.17.3 prebuilt doesn't bundle <code>libusb-1.0.dll</code>. Without it, USB device enumeration silently fails — the device shows up in Device Manager but is invisible to the app. No error, just "No device" forever.</p>
+      <p style="margin-top: 0.5rem;"><strong>Fix:</strong> Use depthai-core v2.32.0 or later. It bundles <code>libusb-1.0.dll</code> and the POST_BUILD step copies it next to the executable automatically.</p>
+    </div>
+
+    <div class="gotcha">
+      <h4>getAllConnectedDevices is NOT on dai::DeviceBase</h4>
+      <p>The API is split across two classes. <code>getAllConnectedDevices()</code> is on <code>dai::XLinkConnection</code> and requires <code>#include &lt;depthai/xlink/XLinkConnection.hpp&gt;</code>. <code>getAllAvailableDevices()</code> is on <code>dai::DeviceBase</code>.</p>
+    </div>
+
+    <div class="gotcha">
+      <h4>ImGui's default font (ProggyClean) is ASCII-only</h4>
+      <p>Unicode characters like <code>●</code> (U+25CF) render as <code>?</code>. Use <code>ImGui::Bullet()</code> instead. To use Unicode you must load a custom font that covers the required code points.</p>
+    </div>
+
+    <div class="gotcha">
+      <h4>Open VS2022 with File → Open → Folder, not Open Solution</h4>
+      <p>CMake projects must be opened as a <em>folder</em>. VS2022 detects <code>CMakePresets.json</code> automatically. Opening a <code>.sln</code> file from a different project will give confusing build errors.</p>
+    </div>
+
+    <div class="lesson">
+      <h4>Old DLLs can survive a rebuild</h4>
+      <p>When switching from depthai v2.17.3 to v2.32.0, the old DLLs may remain in the output directory until a clean rebuild triggers the POST_BUILD copy step. If the app behaves unexpectedly after changing deps, do a full clean rebuild.</p>
+    </div>
+
+    <div class="lesson">
+      <h4>The available check must be per-device, not global</h4>
+      <p>Checking <code>!available.empty()</code> answers "is any device available?" — not "is this specific device available?". Use <code>std::any_of</code> comparing by MX ID to check the device you actually found.</p>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENT -->
+  <div class="section" id="environment">
+    <h2>Environment &amp; Dependencies</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border); color: var(--muted); text-align: left;">
+          <th style="padding: 6px 12px 6px 0;">Dependency</th>
+          <th style="padding: 6px 12px 6px 0;">Version</th>
+          <th style="padding: 6px 0;">Location</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 8px 12px 8px 0;">depthai-core</td>
+          <td style="padding: 8px 12px 8px 0;"><code>2.32.0</code></td>
+          <td style="padding: 8px 0;"><code>E:\luxonis\depthai-win64\</code></td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 8px 12px 8px 0;">GLFW</td>
+          <td style="padding: 8px 12px 8px 0;"><code>3.4</code></td>
+          <td style="padding: 8px 0;"><code>E:\luxonis\glfw-win64\</code></td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 8px 12px 8px 0;">ImGui</td>
+          <td style="padding: 8px 12px 8px 0;">docking branch</td>
+          <td style="padding: 8px 0;"><code>third_party/imgui/</code> (vendored)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 8px 12px 8px 0;">Device</td>
+          <td style="padding: 8px 12px 8px 0;">OAK-D-Lite</td>
+          <td style="padding: 8px 0;">MX ID: <code>18443010C1BAC61200</code></td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 12px 8px 0;">Build</td>
+          <td style="padding: 8px 12px 8px 0;">VS2022 + CMake</td>
+          <td style="padding: 8px 0;">File → Open → Folder, preset: <code>windows-debug</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="nav-links">
+    <a href="oak-reference.html">← Concepts Reference</a>
+    <a href="oak-stage2.html">Stage 2 — Camera Streams →</a>
+  </div>
+
+</div>
+</body>
+</html>
