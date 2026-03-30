@@ -174,7 +174,7 @@
       <p style="color: var(--muted); margin: 0;">Live RGB pipeline · OpenGL texture · ImGui::Image()</p>
     </div>
     <div style="margin-left: auto; text-align: right;">
-      <span class="badge badge-wip">In Progress</span>
+      <span class="badge" style="background:rgba(80,200,120,0.15);color:#50c878;border:1px solid rgba(80,200,120,0.3);">Complete</span>
     </div>
   </div>
 
@@ -344,10 +344,15 @@
     <p>Drives the RGB sensor. Configures resolution, frame rate, and pixel format. Produces frames continuously once the pipeline is booted.</p>
     <ul>
       <li><strong>setPreviewSize(1280, 720)</strong> — output resolution for the preview stream</li>
-      <li><strong>setInterleaved(false)</strong> — planar pixel layout, required for OpenGL upload</li>
-      <li><strong>setColorOrder(BGR)</strong> — B, G, R byte order (OpenCV convention)</li>
+      <li><strong>setInterleaved(true)</strong> — interleaved RGBRGBRGB… layout — required for <code>GL_RGB</code></li>
+      <li><strong>setColorOrder(RGB)</strong> — R, G, B byte order to match OpenGL's <code>GL_RGB</code> format</li>
       <li><strong>setFps(30)</strong> — target frame rate</li>
     </ul>
+
+    <div class="insight">
+      <div class="label">Critical — setInterleaved must be true</div>
+      <p style="color:#e6edf3;margin:0;"><code>setInterleaved(false)</code> outputs planar CHW layout: all R bytes, then all G bytes, then all B bytes. OpenGL's <code>GL_RGB</code> expects interleaved RGBRGBRGB… bytes. Using <code>false</code> renders as a 3×3 tiled grayscale grid — a confusing symptom. Always use <code>true</code> when uploading to an OpenGL texture.</p>
+    </div>
 
     <h3>XLinkOut — Output node</h3>
     <p>A pipeline tap — ships data from the OAK to the host over USB. Every stream needs one. You give it a name; the host uses that same name to open the receive queue.</p>
@@ -361,8 +366,8 @@
 
 <span class="keyword">auto</span> cam = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::ColorCamera</span>&gt;();
 cam-&gt;<span class="call">setPreviewSize</span>(<span class="num">1280</span>, <span class="num">720</span>);
-cam-&gt;<span class="call">setInterleaved</span>(<span class="keyword">false</span>);
-cam-&gt;<span class="call">setColorOrder</span>(<span class="type">dai::ColorCameraProperties::ColorOrder::BGR</span>);
+cam-&gt;<span class="call">setInterleaved</span>(<span class="keyword">true</span>);   <span class="comment">// interleaved RGBRGB… — required for GL_RGB</span>
+cam-&gt;<span class="call">setColorOrder</span>(<span class="type">dai::ColorCameraProperties::ColorOrder::RGB</span>);
 cam-&gt;<span class="call">setFps</span>(<span class="num">30</span>);
 
 <span class="keyword">auto</span> xout = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::XLinkOut</span>&gt;();
@@ -409,6 +414,7 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
 
     <h3>Phase 1 — Create the texture once at startup</h3>
 <pre><span class="type">GLuint</span> texId;
+<span class="call">glPixelStorei</span>(GL_UNPACK_ALIGNMENT, <span class="num">1</span>);  <span class="comment">// RGB rows may not be 4-byte aligned</span>
 <span class="call">glGenTextures</span>(<span class="num">1</span>, &amp;texId);
 <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId);
 <span class="call">glTexParameteri</span>(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -416,7 +422,9 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
 
 <span class="comment">// Allocate GPU memory (nullptr = empty for now)</span>
 <span class="call">glTexImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, GL_RGB,
-    width, height, <span class="num">0</span>, GL_BGR, GL_UNSIGNED_BYTE, <span class="keyword">nullptr</span>);</pre>
+    width, height, <span class="num">0</span>, GL_RGB, GL_UNSIGNED_BYTE, <span class="keyword">nullptr</span>);
+<span class="call">glBindTexture</span>(GL_TEXTURE_2D, <span class="num">0</span>);
+<span class="call">glPixelStorei</span>(GL_UNPACK_ALIGNMENT, <span class="num">4</span>);  <span class="comment">// restore default</span></pre>
 
     <h3>Phase 2 — Upload each new frame</h3>
 <pre><span class="keyword">auto</span> frame = queue-&gt;<span class="call">tryGet</span>&lt;<span class="type">dai::ImgFrame</span>&gt;();
@@ -425,8 +433,9 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
     <span class="call">glTexSubImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>,  <span class="comment">// target, mip level</span>
         <span class="num">0</span>, <span class="num">0</span>,                          <span class="comment">// x, y offset</span>
         width, height,                 <span class="comment">// dimensions</span>
-        GL_BGR, GL_UNSIGNED_BYTE,      <span class="comment">// format, type</span>
+        GL_RGB, GL_UNSIGNED_BYTE,      <span class="comment">// format, type</span>
         frame-&gt;<span class="call">getData</span>().<span class="call">data</span>());      <span class="comment">// pixel pointer</span>
+    <span class="call">glBindTexture</span>(GL_TEXTURE_2D, <span class="num">0</span>);
 }</pre>
 
     <h3>OpenGL API — what each call actually does</h3>
@@ -445,7 +454,7 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
     <ul>
       <li><strong>mip = 0</strong> — base mip level. We don't use mipmaps for live video.</li>
       <li><strong>internalFormat = GL_RGB</strong> — how OpenGL stores it in VRAM: 3 channels, 8 bits each.</li>
-      <li><strong>format = GL_BGR</strong> — the byte order of the data you're providing. Matches the OAK's output.</li>
+      <li><strong>format = GL_RGB</strong> — the byte order of the data. Must match <code>setColorOrder(RGB)</code> and <code>setInterleaved(true)</code>.</li>
       <li><strong>data = nullptr</strong> — allocates memory without uploading anything yet. The first real frame fills it via <code>glTexSubImage2D</code>.</li>
     </ul>
 
@@ -453,7 +462,7 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
     <p>Updates a region of an already-allocated texture in place — <strong>no reallocation</strong>. This is what you call every frame. It's much faster than <code>glTexImage2D</code> because the VRAM is already reserved.</p>
     <ul>
       <li><strong>x=0, y=0</strong> — top-left corner, we replace the full texture each frame.</li>
-      <li><strong>GL_BGR</strong> — OAK outputs Blue-Green-Red byte order. OpenGL handles the reorder internally at no extra cost.</li>
+      <li><strong>GL_RGB</strong> — matches <code>ColorOrder::RGB</code> and <code>setInterleaved(true)</code>. Note: <code>GL_BGR</code> is not valid in OpenGL 3.3 core profile.</li>
       <li><strong>getData().data()</strong> — returns a raw <code>uint8_t*</code> pointer to the frame's pixel buffer in CPU RAM.</li>
     </ul>
 
@@ -498,7 +507,7 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
 <span class="keyword">if</span> (frame) {
     <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId);
     <span class="call">glTexSubImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>,
-        width, height, GL_BGR, GL_UNSIGNED_BYTE,
+        width, height, GL_RGB, GL_UNSIGNED_BYTE,
         frame-&gt;<span class="call">getData</span>().<span class="call">data</span>());
 }
 
@@ -557,12 +566,124 @@ cam-&gt;preview.<span class="call">link</span>(xout-&gt;input); <span class="com
 
   <div class="section" id="annotated-code">
     <h2>Annotated Code</h2>
-    <div class="wip">Content coming — walkthrough in progress</div>
+    <p class="subtitle">CameraStream.cpp — line by line</p>
+
+    <h3>open() — build pipeline and create GL texture</h3>
+<pre><span class="keyword">void</span> <span class="type">CameraStream</span>::<span class="call">open</span>() {
+  <span class="keyword">try</span> {
+    <span class="comment">// --- Build the pipeline (host-side description only) ---</span>
+    <span class="type">dai::Pipeline</span> pipeline;
+
+    <span class="keyword">auto</span> cam = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::ColorCamera</span>&gt;();
+    cam-&gt;<span class="call">setPreviewSize</span>(width_, height_);
+    <span class="comment">// true = interleaved RGBRGB… — GL_RGB expects this byte order</span>
+    <span class="comment">// false = planar CHW (all R, then G, then B) — causes 3×3 tiled display</span>
+    cam-&gt;<span class="call">setInterleaved</span>(<span class="keyword">true</span>);
+    <span class="comment">// GL_BGR is NOT valid in OpenGL 3.3 core profile — must use RGB</span>
+    cam-&gt;<span class="call">setColorOrder</span>(<span class="type">dai::ColorCameraProperties::ColorOrder::RGB</span>);
+    cam-&gt;<span class="call">setFps</span>(<span class="num">30</span>);
+
+    <span class="keyword">auto</span> xout = pipeline.<span class="call">create</span>&lt;<span class="type">dai::node::XLinkOut</span>&gt;();
+    xout-&gt;<span class="call">setStreamName</span>(<span class="string">"rgb"</span>);
+    cam-&gt;preview.<span class="call">link</span>(xout-&gt;input);  <span class="comment">// camera.preview → XLinkOut</span>
+
+    <span class="comment">// --- Boot the device (uploads graph to VPU over USB) ---</span>
+    device_ = std::<span class="call">make_unique</span>&lt;<span class="type">dai::Device</span>&gt;(pipeline);
+
+    <span class="comment">// --- Get the output queue (non-blocking, max 4 frames buffered) ---</span>
+    queue_ = device_-&gt;<span class="call">getOutputQueue</span>(<span class="string">"rgb"</span>, <span class="num">4</span>, <span class="keyword">false</span>);
+
+    <span class="comment">// --- Create GL texture ---</span>
+    <span class="comment">// Set alignment=1: RGB rows at 1280px are 3840 bytes — not always 4-byte aligned</span>
+    <span class="call">glPixelStorei</span>(GL_UNPACK_ALIGNMENT, <span class="num">1</span>);
+    <span class="call">glGenTextures</span>(<span class="num">1</span>, &amp;texId_);
+    <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId_);
+    <span class="call">glTexParameteri</span>(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    <span class="call">glTexParameteri</span>(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    <span class="comment">// Allocate VRAM without uploading pixels yet (nullptr)</span>
+    <span class="call">glTexImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, GL_RGB,
+        width_, height_, <span class="num">0</span>, GL_RGB, GL_UNSIGNED_BYTE, <span class="keyword">nullptr</span>);
+    <span class="call">glBindTexture</span>(GL_TEXTURE_2D, <span class="num">0</span>);
+    <span class="call">glPixelStorei</span>(GL_UNPACK_ALIGNMENT, <span class="num">4</span>);  <span class="comment">// restore OpenGL default</span>
+
+    streaming_ = <span class="keyword">true</span>;
+  } <span class="keyword">catch</span> (<span class="keyword">const</span> std::<span class="type">exception</span>&amp; e) {
+    <span class="call">fprintf</span>(stderr, <span class="string">"CameraStream::open failed: %s\n"</span>, e.<span class="call">what</span>());
+    <span class="call">close</span>();  <span class="comment">// clean up any partial state</span>
+  }
+}</pre>
+
+    <h3>close() — destruction order matters</h3>
+<pre><span class="keyword">void</span> <span class="type">CameraStream</span>::<span class="call">close</span>() {
+    streaming_ = <span class="keyword">false</span>;
+    queue_.<span class="call">reset</span>();   <span class="comment">// release queue BEFORE device — queue holds a reference</span>
+    device_.<span class="call">reset</span>();  <span class="comment">// destructor stops the pipeline on the VPU</span>
+    <span class="keyword">if</span> (texId_ != <span class="num">0</span>) {
+        <span class="call">glDeleteTextures</span>(<span class="num">1</span>, &amp;texId_);  <span class="comment">// must be called while GL context is active</span>
+        texId_ = <span class="num">0</span>;
+    }
+}</pre>
+
+    <div class="insight">
+      <div class="label">Key: call close() before GLFW teardown</div>
+      <p style="color:#e6edf3;margin:0;"><code>glDeleteTextures</code> requires an active OpenGL context. In <code>main.cpp</code>, call <code>stream.close()</code> before <code>ImGui::DestroyContext()</code> and <code>glfwDestroyWindow()</code>.</p>
+    </div>
+
+    <h3>poll() — called every render frame</h3>
+<pre><span class="keyword">void</span> <span class="type">CameraStream</span>::<span class="call">poll</span>() {
+    <span class="keyword">if</span> (!streaming_) <span class="keyword">return</span>;
+    <span class="keyword">try</span> {
+        <span class="comment">// tryGet() is non-blocking — returns nullptr if no new frame yet</span>
+        <span class="keyword">auto</span> frame = queue_-&gt;<span class="call">tryGet</span>&lt;<span class="type">dai::ImgFrame</span>&gt;();
+        <span class="keyword">if</span> (frame) {
+            <span class="comment">// Update texture in-place — no VRAM reallocation (glTexSubImage2D)</span>
+            <span class="call">glBindTexture</span>(GL_TEXTURE_2D, texId_);
+            <span class="call">glTexSubImage2D</span>(GL_TEXTURE_2D, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>,
+                width_, height_,
+                GL_RGB, GL_UNSIGNED_BYTE,
+                frame-&gt;<span class="call">getData</span>().<span class="call">data</span>());
+            <span class="call">glBindTexture</span>(GL_TEXTURE_2D, <span class="num">0</span>);
+        }
+    } <span class="keyword">catch</span> (<span class="keyword">const</span> std::<span class="type">exception</span>&amp; e) {
+        <span class="call">fprintf</span>(stderr, <span class="string">"CameraStream::poll error: %s\n"</span>, e.<span class="call">what</span>());
+        streaming_ = <span class="keyword">false</span>;  <span class="comment">// stop trying on error</span>
+    }
+}</pre>
   </div>
 
   <div class="section" id="gotchas">
     <h2>Gotchas &amp; Lessons Learned</h2>
-    <div class="wip">Populated after implementation</div>
+    <p class="subtitle">Every bug we hit implementing Stage 2 — and the fix</p>
+
+    <h3 style="color:var(--red);">1 — WINGDIAPI / APIENTRY redefinition (~100 C2086 errors)</h3>
+    <p><strong>Symptom:</strong> After adding <code>#include &lt;GL/GL.h&gt;</code> to CameraStream.cpp, the build explodes with ~100 errors in <code>GL/GL.h</code>: <em>"C2086: 'int WINGDIAPI': redefinition"</em>.</p>
+    <p><strong>Cause:</strong> Windows SDK's <code>GL/GL.h</code> defines <code>WINGDIAPI</code> and <code>APIENTRY</code>. But <code>#include &lt;depthai/depthai.hpp&gt;</code> (which appears earlier) pulls in Windows headers that also define them. Second definition = error.</p>
+    <p><strong>Fix:</strong> Replace <code>#include &lt;GL/GL.h&gt;</code> with <code>#include &lt;GLFW/glfw3.h&gt;</code>. GLFW guards these macros correctly and covers all modern OpenGL constants (the Windows SDK GL.h only covers OpenGL 1.1).</p>
+
+    <h3 style="color:var(--red);">2 — 3×3 tiled grayscale image</h3>
+    <p><strong>Symptom:</strong> App builds and runs, device connects, but the Camera window shows a 3×3 grid of small grayscale versions of the scene.</p>
+    <p><strong>Cause:</strong> <code>setInterleaved(false)</code> outputs planar CHW data: all R bytes, then all G bytes, then all B bytes. OpenGL's <code>GL_RGB</code> expects interleaved RGBRGBRGB… data. OpenGL misinterprets the planar buffer as 3 side-by-side grayscale panels.</p>
+    <p><strong>Fix:</strong> Change <code>setInterleaved(false)</code> → <code>setInterleaved(true)</code>.</p>
+
+    <h3 style="color:var(--red);">3 — 3–5 fps frame rate</h3>
+    <p><strong>Symptom:</strong> App runs correctly but frame rate is 3–5 fps instead of 30.</p>
+    <p><strong>Cause:</strong> <code>OakDevice::poll()</code> called <code>dai::XLinkConnection::getAllConnectedDevices()</code> and <code>dai::DeviceBase::getAllAvailableDevices()</code> <em>every render frame</em>. USB enumeration costs ~100–200ms per call. Both calls per frame = 200–400ms overhead = 3–5 fps cap.</p>
+    <p><strong>Fix:</strong> Throttle <code>OakDevice::poll()</code> to 1 Hz using <code>std::chrono::steady_clock</code>. Device connect/disconnect is a human-speed event — polling at 1 Hz is more than fast enough.</p>
+
+    <h3 style="color:var(--red);">4 — Camera window docked inside sidebar</h3>
+    <p><strong>Symptom:</strong> The new "Camera" window appears inside the sidebar panel, not as a separate floating window.</p>
+    <p><strong>Cause:</strong> ImGui saves docking layout to <code>imgui.ini</code>. On first launch (or after any previously saved layout), new windows may auto-dock. Additionally, <code>imgui.ini</code> from Stage 1 didn't include the Camera window, so ImGui placed it in the nearest available dock area.</p>
+    <p><strong>Fix:</strong> (1) Delete <code>imgui.ini</code> to clear the saved layout. (2) Add <code>ImGui::SetNextWindowPos(ImVec2(240, 10), ImGuiCond_FirstUseEver)</code> and <code>SetNextWindowSize(ImVec2(900, 540), ImGuiCond_FirstUseEver)</code> at the top of <code>renderStreamView()</code> to set a sensible default position for first use.</p>
+
+    <h3 style="color:var(--yellow);">5 — GL_UNPACK_ALIGNMENT not restored</h3>
+    <p><strong>Symptom:</strong> Code review catch — not a visible bug at 1280px width, but correctness issue.</p>
+    <p><strong>Cause:</strong> After <code>glPixelStorei(GL_UNPACK_ALIGNMENT, 1)</code>, the alignment was never restored to the default value of 4. Any subsequent OpenGL texture operations in the app (e.g., ImGui's own fonts) would inherit the alignment-1 setting.</p>
+    <p><strong>Fix:</strong> Add <code>glPixelStorei(GL_UNPACK_ALIGNMENT, 4)</code> immediately after the <code>glTexImage2D</code> call.</p>
+
+    <div class="insight">
+      <div class="label">Pattern — GL_BGR is not valid in OpenGL 3.3 core profile</div>
+      <p style="color:#e6edf3;margin:0;"><code>GL_BGR</code> is an OpenGL extension (part of OpenGL 1.2+ compatibility profile). It is not available in the core profile used by this project. Always use <code>GL_RGB</code> and match it with <code>ColorOrder::RGB</code> on the camera side. The performance difference is zero — the reorder happens in silicon on the GPU anyway.</p>
+    </div>
   </div>
 
   <div class="nav-links">
