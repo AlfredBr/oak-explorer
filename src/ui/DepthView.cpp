@@ -8,6 +8,9 @@
 namespace ui {
 
 void renderDepthView(const oak::OakStreams& streams) {
+    // Default position on first run (before imgui.ini is saved)
+    ImGui::SetNextWindowPos(ImVec2(240, 560), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(900, 540), ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Depth")) {
         if (streams.isStreaming()) {
             // --- Heatmap image (aspect-fit to window width) ---
