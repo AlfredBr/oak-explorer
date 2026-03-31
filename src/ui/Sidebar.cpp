@@ -1,10 +1,11 @@
 // src/ui/Sidebar.cpp
 #include "ui/Sidebar.h"
+#include "oak/OakStreams.h"
 #include <imgui.h>
 
 namespace ui {
 
-void renderSidebar(const oak::OakDevice& device, const oak::CameraStream& stream) {
+void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams) {
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(220, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
 
@@ -37,7 +38,7 @@ void renderSidebar(const oak::OakDevice& device, const oak::CameraStream& stream
         // State: UNBOOTED = visible but no pipeline running (normal for Stage 1)
         //        BOOTED   = pipeline active (Stage 2+)
         ImGui::TextDisabled("State");
-        if (stream.isStreaming()) {
+        if (streams.isStreaming()) {
             ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "Streaming");
         } else {
             ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
