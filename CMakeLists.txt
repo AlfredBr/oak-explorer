@@ -25,14 +25,20 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
+# --- ImPlot sources (vendored) ---
+set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/third_party/implot)
+
 # --- Executable ---
 add_executable(oak-explorer
     src/main.cpp
     src/oak/Device.cpp
-    src/oak/CameraStream.cpp
+    src/oak/OakStreams.cpp
     src/ui/Sidebar.cpp
     src/ui/StreamView.cpp
+    src/ui/DepthView.cpp
     ${IMGUI_SOURCES}
+    ${IMPLOT_DIR}/implot.cpp
+    ${IMPLOT_DIR}/implot_items.cpp
 )
 
 target_include_directories(oak-explorer PRIVATE
@@ -40,6 +46,7 @@ target_include_directories(oak-explorer PRIVATE
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${GLFW_INCLUDE_DIR}
+    ${IMPLOT_DIR}
 )
 
 target_link_libraries(oak-explorer PRIVATE
