@@ -129,6 +129,17 @@ You can read releases logs https://github.com/epezent/implot/releases for more d
 #include "implot_internal.h"
 
 #include <stdlib.h>
+#include <stddef.h>  // offsetof
+
+// ImGui 1.92 compatibility shim for ImPlot v0.16
+// IM_OFFSETOF was removed; use standard offsetof instead
+#ifndef IM_OFFSETOF
+#  define IM_OFFSETOF(TYPE, MEMBER) offsetof(TYPE, MEMBER)
+#endif
+// IM_FLOOR was renamed to IM_TRUNC in ImGui 1.90
+#ifndef IM_FLOOR
+#  define IM_FLOOR IM_TRUNC
+#endif
 
 // Support for pre-1.82 versions. Users on 1.82+ can use 0 (default) flags to mean "all corners" but in order to support older versions we are more explicit.
 #if (IMGUI_VERSION_NUM < 18102) && !defined(ImDrawFlags_RoundCornersAll)
@@ -342,7 +353,7 @@ void AddTextVertical(ImDrawList *DrawList, ImVec2 pos, ImU32 col, const char *te
     // Align to be pixel perfect
     pos.x = IM_FLOOR(pos.x);
     pos.y = IM_FLOOR(pos.y);
-    const float scale = g.FontSize / font->FontSize;
+    const float scale = g.FontSize / font->LegacySize; // ImGui 1.92: FontSize -> LegacySize
     const char* s = text_begin;
     int chars_exp = (int)(text_end - s);
     int chars_rnd = 0;
@@ -359,7 +370,7 @@ void AddTextVertical(ImDrawList *DrawList, ImVec2 pos, ImU32 col, const char *te
             if (c == 0) // Malformed UTF-8?
                 break;
         }
-        const ImFontGlyph * glyph = font->FindGlyph((ImWchar)c);
+        const ImFontGlyph * glyph = font->GetFontBaked(g.FontSize)->FindGlyph((ImWchar)c); // ImGui 1.92: FindGlyph moved to ImFontBaked
         if (glyph == nullptr) {
             continue;
         }

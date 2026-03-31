@@ -3,11 +3,13 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
+#include <implot.h>
 
 #include "oak/Device.h"
-#include "oak/CameraStream.h"
+#include "oak/OakStreams.h"
 #include "ui/Sidebar.h"
 #include "ui/StreamView.h"
+#include "ui/DepthView.h"
 
 #include <cstdio>
 
@@ -32,6 +34,7 @@ int main() {
     // ImGui setup
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();    // must be after ImGui::CreateContext()
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -41,16 +44,16 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     // OpenGL context is now active — safe to create GL resources
-    oak::OakDevice   device;
-    oak::CameraStream stream;
-    stream.open();
+    oak::OakDevice  device;
+    oak::OakStreams  streams;
+    streams.open();
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        // Poll device state and camera frames — before ImGui frame
+        // Poll device state and frames — before ImGui frame
         device.poll();
-        stream.poll();
+        streams.poll();
 
         // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -62,8 +65,9 @@ int main() {
             ImGuiDockNodeFlags_PassthruCentralNode);
 
         // Render UI panels
-        ui::renderSidebar(device, stream);
-        ui::renderStreamView(stream);
+        ui::renderSidebar(device, streams);
+        ui::renderStreamView(streams);
+        ui::renderDepthView(streams);
 
         // Render and present
         ImGui::Render();
@@ -76,12 +80,11 @@ int main() {
         glfwSwapBuffers(window);
     }
 
-    // Cleanup — close stream before ImGui/GLFW teardown
-    // GL resources (texture) must be freed while the OpenGL context is still active.
-    // ImGui_ImplOpenGL3_Shutdown and glfwDestroyWindow destroy the context.
-    stream.close();
+    // Cleanup — GL resources must be freed while context is still active
+    streams.close();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();   // before ImGui::DestroyContext()
     ImGui::DestroyContext();
     glfwDestroyWindow(window);
     glfwTerminate();

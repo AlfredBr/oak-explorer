@@ -83,7 +83,7 @@ void OakStreams::open() {
 
         // StereoDepth — HIGH_DENSITY preset, depth output in mm as uint16
         auto stereo = pipeline.create<dai::node::StereoDepth>();
-        stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetType::HIGH_DENSITY);
+        stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
 
         monoLeft->out.link(stereo->left);
         monoRight->out.link(stereo->right);
