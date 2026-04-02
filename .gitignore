@@ -4,3 +4,4 @@ out/
 *.user
 CMakeSettings.json
 .superpowers/
+.worktrees/
