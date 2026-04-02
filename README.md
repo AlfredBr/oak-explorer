@@ -14,8 +14,8 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 |---|---|---|
 | 1 | Foundation — ImGui window, device detection sidebar | ✅ Complete |
 | 2 | Camera Streams — live RGB frame as ImGui texture | ✅ Complete |
-| 3 | Depth & Stereo — StereoDepth node, heatmap, depth math | ⬜ Planned |
-| 4 | Spatial Data — click pixel → XYZ in metres | ⬜ Planned |
+| 3 | Depth & Stereo — StereoDepth node, heatmap, depth math | ✅ Complete |
+| 4 | Spatial Data — click pixel → XYZ in metres | ✅ Complete |
 | 5 | CUDA Acceleration — RTX GPU kernels, OpenGL PBO interop | ⬜ Planned |
 | 6 | Neural Inference — .blob model on OAK VPU, detection overlays | ⬜ Planned |
 
@@ -29,6 +29,30 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 - App runs gracefully with no device connected — shows "No stream" placeholder
 
 ![Stage 2 screenshot — Camera window showing live RGB frame, sidebar showing Streaming](stage2.png)
+
+---
+
+## Stage 4 — What It Does
+
+- `SpatialLocationCalculator` node wired to `StereoDepth` output — averages depth over a 5%×5% ROI and returns real-world XYZ coordinates using the camera's built-in intrinsics
+- `XLinkIn` ("spatialConfig") receives `SpatialLocationsConfig` packets from host when the ROI changes — the reverse of the normal device→host data flow
+- `StreamView` detects mouse clicks (Lock mode) or hover position (Track mode) and calls `streams.setRoi()` with normalised coordinates
+- Corner-bracket reticle drawn via `ImGui::GetWindowDrawList()` marks the current sample point
+- Sidebar shows colour-coded XYZ readout (X=blue, Y=green, Z=orange) with a Lock/Track radio toggle
+
+![Stage 4 screenshot — Camera window with reticle, Sidebar showing XYZ readout](stage4.png)
+
+---
+
+## Stage 3 — What It Does
+
+- `MonoCamera` left/right nodes feed a `StereoDepth` node configured with the `HIGH_DENSITY` preset
+- Depth output is uint16 mm values via `stereo->depth` (not disparity) — streamed at 640×400
+- Turbo colormap LUT (256 entries) applied on CPU each frame: close pixels → red, far → purple, invalid (0) → black
+- `DepthView` panel renders the heatmap texture and an ImPlot histogram of valid depth values
+- Raw uint16 depth buffer exposed via `rawDepthData()` for the histogram; pointer valid only until next `poll()`
+
+![Stage 3 screenshot — Depth window showing Turbo heatmap and histogram](stage3.png)
 
 ---
 
@@ -138,18 +162,42 @@ oak-explorer/
 │   ├── oak/
 │   │   ├── Device.h          # OakDevice interface (USB enumeration, throttled)
 │   │   ├── Device.cpp        # depthai device enumeration wrapper
-│   │   ├── CameraStream.h    # CameraStream interface (pipeline + GL texture)
-│   │   └── CameraStream.cpp  # builds pipeline, owns device + queue + texture
+│   │   └── OakStreams.h/.cpp # RGB + StereoDepth + SpatialLocationCalculator pipeline
 │   └── ui/
-│       ├── Sidebar.h         # renderSidebar() declaration
-│       ├── Sidebar.cpp       # ImGui sidebar panel (shows Streaming state)
-│       ├── StreamView.h      # renderStreamView() declaration
-│       └── StreamView.cpp    # ImGui Camera window with ImGui::Image()
+│       ├── Sidebar.h/.cpp    # sidebar: streaming state, spatial XYZ, mode toggle
+│       ├── StreamView.h/.cpp # Camera window: live RGB, click/hover ROI, reticle overlay
+│       ├── DepthView.h/.cpp  # Depth window: Turbo heatmap + ImPlot histogram
+│       └── SpatialMode.h     # SpatialMode enum (Lock / Track)
 ├── third_party/
 │   └── imgui/                # ImGui docking branch (vendored)
 ├── CMakeLists.txt
 └── CMakePresets.json
 ```
+
+---
+
+## Key Lessons (Stage 4)
+
+- `SpatialLocationCalculator` takes `stereo->depth` as input (not disparity) — miswiring to disparity gives nonsense XYZ
+- `setWaitForConfigInput(false)` is required — without it the node stalls waiting for a host config packet before producing any output
+- `XLinkIn` sends `SpatialLocationCalculatorConfig` objects (not raw bytes) via `DataInputQueue::send(cfg)`
+- ROI expressed as `dai::Rect(dai::Point2f(x0,y0), dai::Point2f(x1,y1))` in normalised [0,1] coords; clamp to keep the 5% half-width inside the frame
+- `spatialCoordinates.x/y/z` are in mm — divide by 1000 for metres
+- Coordinate system: X right, Y down, Z forward (away from camera); positive Z is always the depth distance
+- `MEDIAN` algorithm is more robust than `AVERAGE` for stereo noise — avoids outlier depth values skewing the result
+- `tryGet()` on the spatial queue returns nullptr when no new data — safe to call every frame, just skip
+
+---
+
+## Key Lessons (Stage 3)
+
+- `stereo->depth` output is uint16 mm (zero = invalid); `stereo->disparity` is a different stream with different semantics — don't mix them
+- `MonoCamera` board sockets on OAK-D-Lite: `CAM_B` = left, `CAM_C` = right (OAK-D uses `LEFT`/`RIGHT`; OAK-D-Lite uses `CAM_B`/`CAM_C`)
+- `StereoDepth::PresetMode::HIGH_DENSITY` trades range for fill rate — good default for indoor use
+- Turbo colormap must be inverted to feel natural: close = warm (red), far = cool (purple); map `d` to `(10000−d)/(10000−400)×255`
+- `ImPlot::CreateContext()` must be called after `ImGui::CreateContext()`; `ImPlot::DestroyContext()` before `ImGui::DestroyContext()`
+- `ImPlot::BeginPlot` with size `ImVec2(-1, height)` fills available width — consistent with how `ImGui::Image` is scaled
+- `rawDepthData()` pointer is invalidated on the next `poll()` — copy to a local vector before the next frame if you need to keep it
 
 ---
 
