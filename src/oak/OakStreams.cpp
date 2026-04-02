@@ -52,6 +52,29 @@ static constexpr uint8_t kTurboLut[256][3] = {
     {71,0,0},{67,0,0},{63,0,0},{58,0,0},{53,0,0},{47,0,0},{40,0,0},{30,0,0},
 };
 
+void OakStreams::setRoi(float normX, float normY) {
+    if (!streaming_) return;
+
+    // Clamp to valid range — keep the 5% half-width inside the frame
+    normX = std::clamp(normX, 0.025f, 0.975f);
+    normY = std::clamp(normY, 0.025f, 0.975f);
+    roiCenterX_ = normX;
+    roiCenterY_ = normY;
+
+    dai::SpatialLocationCalculatorConfig cfg;
+    dai::SpatialLocationCalculatorConfigData roi;
+    roi.roi = dai::Rect(dai::Point2f(normX - 0.025f, normY - 0.025f),
+                        dai::Point2f(normX + 0.025f, normY + 0.025f));
+    roi.calculationAlgorithm = dai::SpatialLocationCalculatorAlgorithm::MEDIAN;
+    cfg.addROI(roi);
+
+    try {
+        queueSpatialConfig_->send(cfg);
+    } catch (...) {
+        // Non-fatal — spatial result simply won't update this frame
+    }
+}
+
 OakStreams::OakStreams()  = default;
 OakStreams::~OakStreams() { close(); }
 
@@ -95,12 +118,39 @@ void OakStreams::open() {
         xoutDepth->setStreamName("depth");
         stereo->depth.link(xoutDepth->input);   // depth output, NOT disparity — uint16 mm
 
+        // --- SpatialLocationCalculator ---
+        // Wired to stereo depth; host sends ROI configs via XLinkIn.
+        auto spatialCalc = pipeline.create<dai::node::SpatialLocationCalculator>();
+        spatialCalc->setWaitForConfigInput(false);  // use initialConfig until first update
+
+        // Initial ROI at image centre (5%×5%)
+        dai::SpatialLocationCalculatorConfigData initialRoi;
+        initialRoi.roi = dai::Rect(dai::Point2f(0.475f, 0.475f),
+                                   dai::Point2f(0.525f, 0.525f));
+        initialRoi.calculationAlgorithm =
+            dai::SpatialLocationCalculatorAlgorithm::MEDIAN;
+        spatialCalc->initialConfig.addROI(initialRoi);
+
+        stereo->depth.link(spatialCalc->inputDepth);
+
+        // XLinkIn — receives SpatialLocationsConfig packets from host
+        auto spatialConfigIn = pipeline.create<dai::node::XLinkIn>();
+        spatialConfigIn->setStreamName("spatialConfig");
+        spatialConfigIn->out.link(spatialCalc->inputConfig);
+
+        // XLinkOut — sends SpatialLocationData packets to host
+        auto xoutSpatial = pipeline.create<dai::node::XLinkOut>();
+        xoutSpatial->setStreamName("spatial");
+        spatialCalc->out.link(xoutSpatial->input);
+
         // --- Open device (boots pipeline onto VPU) ---
         device_ = std::make_unique<dai::Device>(pipeline);
 
         // --- Get output queues (non-blocking, 4-frame buffer) ---
         queueRgb_   = device_->getOutputQueue("rgb",   4, false);
         queueDepth_ = device_->getOutputQueue("depth", 4, false);
+        queueSpatial_       = device_->getOutputQueue("spatial",       4, false);
+        queueSpatialConfig_ = device_->getInputQueue("spatialConfig");
 
         // --- Allocate staging buffers ---
         depthRgbBuf_.resize(640 * 400 * 3);  // Turbo-colored RGB for GL upload
@@ -143,9 +193,14 @@ void OakStreams::open() {
 
 void OakStreams::close() {
     streaming_ = false;
-    queueRgb_.reset();    // release queues before device
+    queueRgb_.reset();           // release queues before device
     queueDepth_.reset();
-    device_.reset();      // destructor stops pipeline
+    queueSpatial_.reset();
+    queueSpatialConfig_.reset();
+    device_.reset();             // destructor stops pipeline
+    hasSpatial_  = false;
+    roiCenterX_  = 0.5f;
+    roiCenterY_  = 0.5f;
     if (rgbTex_ != 0) {
         glDeleteTextures(1, &rgbTex_);
         rgbTex_ = 0;
@@ -216,6 +271,19 @@ void OakStreams::poll() {
                 GL_RGB, GL_UNSIGNED_BYTE,
                 depthRgbBuf_.data());
             glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        // --- Spatial location result ---
+        auto spatialData = queueSpatial_->tryGet<dai::SpatialLocationCalculatorData>();
+        if (spatialData) {
+            const auto locs = spatialData->getSpatialLocations();
+            if (!locs.empty()) {
+                const auto& coords = locs[0].spatialCoordinates;
+                spatialX_   = coords.x / 1000.0f;  // mm → metres
+                spatialY_   = coords.y / 1000.0f;
+                spatialZ_   = coords.z / 1000.0f;
+                hasSpatial_ = true;
+            }
         }
     } catch (const std::exception& e) {
         fprintf(stderr, "OakStreams::poll error: %s\n", e.what());
