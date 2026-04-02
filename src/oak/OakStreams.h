@@ -11,6 +11,7 @@ typedef unsigned int GLuint;
 namespace dai {
     class Device;
     class DataOutputQueue;
+    class DataInputQueue;
 }
 
 namespace oak {
@@ -51,6 +52,19 @@ public:
     const uint16_t* rawDepthData()    const { return depthBuf_.data(); }
     int             depthPixelCount() const { return depthWidth() * depthHeight(); }
 
+    // Send an updated ROI to the SpatialLocationCalculator.
+    // normX, normY are in [0,1] relative to the 1280×720 RGB image.
+    // ROI is fixed at 5%×5% of the frame (±0.025 around the centre).
+    // Safe to call every frame in Track mode — sends only when streaming.
+    void setRoi(float normX, float normY);
+
+    bool  hasSpatial()  const { return hasSpatial_; }
+    float spatialX()    const { return spatialX_; }   // metres, right of centre
+    float spatialY()    const { return spatialY_; }   // metres, down from centre
+    float spatialZ()    const { return spatialZ_; }   // metres, forward (depth)
+    float roiCenterX()  const { return roiCenterX_; } // normalised [0,1]
+    float roiCenterY()  const { return roiCenterY_; } // normalised [0,1]
+
     // Frames skipped since open() — detected via sequence number gaps in poll().
     int droppedRgbFrames()   const { return droppedRgb_; }
     int droppedDepthFrames() const { return droppedDepth_; }
@@ -70,6 +84,15 @@ private:
     int     droppedDepth_ = 0;
     int64_t lastRgbSeq_   = -1;  // -1 = no frame seen yet
     int64_t lastDepthSeq_ = -1;
+
+    std::shared_ptr<dai::DataInputQueue>  queueSpatialConfig_;
+    std::shared_ptr<dai::DataOutputQueue> queueSpatial_;
+    float spatialX_    = 0.0f;
+    float spatialY_    = 0.0f;
+    float spatialZ_    = 0.0f;
+    float roiCenterX_  = 0.5f;  // starts at image centre
+    float roiCenterY_  = 0.5f;
+    bool  hasSpatial_  = false;
 
     bool streaming_ = false;
 };
