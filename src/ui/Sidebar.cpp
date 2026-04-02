@@ -5,7 +5,9 @@
 
 namespace ui {
 
-void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams) {
+void renderSidebar(const oak::OakDevice& device,
+                   const oak::OakStreams& streams,
+                   SpatialMode& mode) {
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(220, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
 
@@ -35,8 +37,6 @@ void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams)
         ImGui::TextWrapped("%s", info.mxId.c_str());
         ImGui::Spacing();
 
-        // State: UNBOOTED = visible but no pipeline running (normal for Stage 1)
-        //        BOOTED   = pipeline active (Stage 2+)
         ImGui::TextDisabled("State");
         if (streams.isStreaming()) {
             ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "Streaming");
@@ -53,6 +53,33 @@ void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams)
             }
         }
         ImGui::Spacing();
+
+        // --- Spatial mode + readout (only meaningful when streaming) ---
+        if (streams.isStreaming()) {
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            ImGui::TextDisabled("Spatial mode");
+            bool lockSelected  = (mode == SpatialMode::Lock);
+            bool trackSelected = (mode == SpatialMode::Track);
+            if (ImGui::RadioButton("Lock",  lockSelected))  mode = SpatialMode::Lock;
+            if (ImGui::RadioButton("Track", trackSelected)) mode = SpatialMode::Track;
+            ImGui::Spacing();
+
+            ImGui::TextDisabled("Sample point");
+            if (streams.hasSpatial()) {
+                ImGui::TextColored(ImVec4(0.3f, 0.7f, 1.0f, 1.0f),
+                    "X  %+.2f m", streams.spatialX());
+                ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f),
+                    "Y  %+.2f m", streams.spatialY());
+                ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f),
+                    "Z  %+.2f m", streams.spatialZ());
+            } else {
+                ImGui::TextDisabled("Click Camera to sample");
+            }
+            ImGui::Spacing();
+        }
+
     } else {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
         ImGui::Bullet();
