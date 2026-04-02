@@ -10,6 +10,7 @@
 #include "ui/Sidebar.h"
 #include "ui/StreamView.h"
 #include "ui/DepthView.h"
+#include "ui/SpatialMode.h"
 
 #include <cstdio>
 
@@ -49,6 +50,8 @@ int main() {
     device.poll();  // capture MX ID + connected state before pipeline boots
     streams.open();
 
+    ui::SpatialMode spatialMode = ui::SpatialMode::Lock;  // default: click to lock
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
@@ -70,8 +73,8 @@ int main() {
             ImGuiDockNodeFlags_PassthruCentralNode);
 
         // Render UI panels
-        ui::renderSidebar(device, streams);
-        ui::renderStreamView(streams);
+        ui::renderSidebar(device, streams, spatialMode);
+        ui::renderStreamView(streams, spatialMode);
         ui::renderDepthView(streams);
 
         // Render and present
