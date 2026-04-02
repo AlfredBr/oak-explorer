@@ -51,6 +51,10 @@ public:
     const uint16_t* rawDepthData()    const { return depthBuf_.data(); }
     int             depthPixelCount() const { return depthWidth() * depthHeight(); }
 
+    // Frames skipped since open() — detected via sequence number gaps in poll().
+    int droppedRgbFrames()   const { return droppedRgb_; }
+    int droppedDepthFrames() const { return droppedDepth_; }
+
 private:
     std::unique_ptr<dai::Device>          device_;
     std::shared_ptr<dai::DataOutputQueue> queueRgb_;
@@ -61,6 +65,11 @@ private:
 
     std::vector<uint8_t>  depthRgbBuf_;  // 640*400*3 — Turbo-colored staging buffer
     std::vector<uint16_t> depthBuf_;     // 640*400   — raw depth values for histogram
+
+    int     droppedRgb_   = 0;
+    int     droppedDepth_ = 0;
+    int64_t lastRgbSeq_   = -1;  // -1 = no frame seen yet
+    int64_t lastDepthSeq_ = -1;
 
     bool streaming_ = false;
 };

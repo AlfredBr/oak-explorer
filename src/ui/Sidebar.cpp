@@ -40,6 +40,11 @@ void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams)
         ImGui::TextDisabled("State");
         if (streams.isStreaming()) {
             ImGui::TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "Streaming");
+            ImGui::Spacing();
+
+            ImGui::TextDisabled("Dropped frames");
+            ImGui::Text("RGB:   %d", streams.droppedRgbFrames());
+            ImGui::Text("Depth: %d", streams.droppedDepthFrames());
         } else {
             ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
                 info.available ? "Unbooted (ready)" : "Booted / in use");
@@ -58,6 +63,16 @@ void renderSidebar(const oak::OakDevice& device, const oak::OakStreams& streams)
         ImGui::TextDisabled("Connect OAK-D-Lite");
         ImGui::TextDisabled("via USB3 and relaunch.");
     }
+
+    // Performance stats — pinned to the bottom of the sidebar
+    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 56.0f);
+    ImGui::Separator();
+    ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+#ifdef NDEBUG
+    ImGui::TextDisabled("RELEASE");
+#else
+    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "DEBUG");
+#endif
 
     ImGui::End();
 }

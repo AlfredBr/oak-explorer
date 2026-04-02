@@ -161,6 +161,11 @@ void OakStreams::poll() {
         // --- RGB frame ---
         auto rgbFrame = queueRgb_->tryGet<dai::ImgFrame>();
         if (rgbFrame) {
+            int64_t seq = rgbFrame->getSequenceNum();
+            if (lastRgbSeq_ >= 0 && seq > lastRgbSeq_ + 1)
+                droppedRgb_ += (int)(seq - lastRgbSeq_ - 1);
+            lastRgbSeq_ = seq;
+
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glBindTexture(GL_TEXTURE_2D, rgbTex_);
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
@@ -174,6 +179,10 @@ void OakStreams::poll() {
         // --- Depth frame ---
         auto depthFrame = queueDepth_->tryGet<dai::ImgFrame>();
         if (depthFrame) {
+            int64_t seq = depthFrame->getSequenceNum();
+            if (lastDepthSeq_ >= 0 && seq > lastDepthSeq_ + 1)
+                droppedDepth_ += (int)(seq - lastDepthSeq_ - 1);
+            lastDepthSeq_ = seq;
             const auto& data = depthFrame->getData();
             const uint16_t* depthData = reinterpret_cast<const uint16_t*>(data.data());
             const int pixelCount = 640 * 400;

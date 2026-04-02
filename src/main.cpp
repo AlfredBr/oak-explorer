@@ -46,13 +46,18 @@ int main() {
     // OpenGL context is now active — safe to create GL resources
     oak::OakDevice  device;
     oak::OakStreams  streams;
+    device.poll();  // capture MX ID + connected state before pipeline boots
     streams.open();
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
         // Poll device state and frames — before ImGui frame
-        device.poll();
+        // Skip USB enumeration while streaming: getAllConnectedDevices() blocks
+        // ~1s on Windows with an active pipeline, tanking frame rate.
+        // streams.poll() will set streaming_=false if the device drops,
+        // which re-enables device.poll() on the next frame.
+        if (!streams.isStreaming()) device.poll();
         streams.poll();
 
         // Start ImGui frame
