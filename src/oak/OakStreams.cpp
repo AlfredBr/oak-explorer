@@ -66,6 +66,9 @@ void OakStreams::open() {
         cam->setInterleaved(true);   // REQUIRED for GL_RGB — false outputs planar CHW
         cam->setColorOrder(dai::ColorCameraProperties::ColorOrder::RGB);
         cam->setFps(30);
+        // Lock focus after initial acquisition — prevents the periodic re-hunt
+        // that blurs the image every few seconds (default is CONTINUOUS_VIDEO).
+        cam->initialControl.setAutoFocusMode(dai::CameraControl::AutoFocusMode::AUTO);
 
         auto xoutRgb = pipeline.create<dai::node::XLinkOut>();
         xoutRgb->setStreamName("rgb");
