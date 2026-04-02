@@ -33,7 +33,7 @@ public:
     // Safe to call at any time, including if open() never succeeded.
     void close();
 
-    // Drain both queues, apply Turbo colormap to depth, upload both textures.
+    // Drain all queues (RGB, depth, spatial), apply Turbo colormap to depth, upload both textures.
     // Never throws. Call once per render frame before ImGui::NewFrame().
     void poll();
 
