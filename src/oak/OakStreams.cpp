@@ -111,6 +111,20 @@ void OakStreams::open() {
         auto stereo = pipeline.create<dai::node::StereoDepth>();
         stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
 
+        // --- On-device depth cleanup filters (Step 1 of flicker reduction) ---
+        // Left-Right consistency check: discards pixels where L→R and R→L disagree
+        stereo->setLeftRightCheck(true);
+        // Median filter: smooths spatial noise without shifting edges much
+        stereo->initialConfig.setMedianFilter(dai::MedianFilter::KERNEL_7x7);
+        // Enable speckle + temporal filters via the raw config
+        {
+            auto cfg = stereo->initialConfig.get();
+            cfg.postProcessing.speckleFilter.enable = true;
+            cfg.postProcessing.speckleFilter.speckleRange = 50;
+            cfg.postProcessing.temporalFilter.enable = true;
+            stereo->initialConfig.set(cfg);
+        }
+
         monoLeft->out.link(stereo->left);
         monoRight->out.link(stereo->right);
 
