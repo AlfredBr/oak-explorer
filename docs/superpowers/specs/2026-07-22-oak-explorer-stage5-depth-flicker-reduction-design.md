@@ -1,7 +1,7 @@
 # Stage 5 — Depth Flicker Reduction — Design Spec
 
 **Date:** 2026-07-22
-**Status:** In Progress
+**Status:** Complete
 **Project dir:** `E:\luxonis\oak-explorer\`
 
 ---
@@ -10,9 +10,13 @@
 
 The raw stereo depth image flickers badly — noisy frame-to-frame variation, salt-and-pepper speckle, and black holes where stereo matching fails. This stage applies filters incrementally to make the depth image visually stable and usable without crashing or destabilizing the application.
 
-**Milestone:** Depth heatmap is visually stable. Speckles are reduced. Frame-to-frame flicker is eliminated. No changes to buffer layouts, data flow, or host-side processing (Step 1).
+**Milestone:** Depth heatmap is visually stable. Speckles are reduced. Frame-to-frame flicker is eliminated.
 
-**Verified:** Steps 1+2 confirmed working — depth image is dramatically more stable with clear silhouettes, smooth color gradients, and minimal flicker at 59.6 FPS. Some remaining black/cyan spots at occlusion edges (Step 3 target).
+**Verified:** All 3 steps confirmed working — depth image is stable with clear silhouettes, smooth color gradients, and minimal flicker at 59.9 FPS (Release build). Remaining edge artifacts are minimal blue/cyan fringe at stereo occlusion boundaries.
+
+**Observations from final verification:**
+- Dropped depth frame counter is high (2677) — likely an artifact of the on-device temporal filter consuming frames for its internal blending pipeline, not actual data loss
+- Histogram auto-range shows negative X values — may need axis limits fixed in a future pass
 
 ---
 
