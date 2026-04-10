@@ -110,6 +110,9 @@ void OakStreams::open() {
         // StereoDepth — HIGH_DENSITY preset, depth output in mm as uint16
         auto stereo = pipeline.create<dai::node::StereoDepth>();
         stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
+        // Align depth to the RGB camera's perspective so objects appear
+        // in the same position in both the Camera and Depth views.
+        stereo->setDepthAlign(dai::CameraBoardSocket::CAM_A);
 
         // --- On-device depth cleanup filters (Step 1 of flicker reduction) ---
         // Left-Right consistency check: discards pixels where L→R and R→L disagree
