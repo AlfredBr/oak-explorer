@@ -124,7 +124,8 @@ void OakStreams::open() {
             cfg.postProcessing.temporalFilter.enable = true;
             // Invalidate edge pixels where stereo has no valid disparity.
             // Removes the blue/cyan fringe at image boundaries.
-            cfg.algorithmControl.numInvalidateEdgePixels = 16;
+            // 32px covers the top/right fringe from the stereo baseline offset.
+            cfg.algorithmControl.numInvalidateEdgePixels = 32;
             stereo->initialConfig.set(cfg);
         }
 
