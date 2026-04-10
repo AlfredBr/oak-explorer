@@ -83,9 +83,9 @@ void OakStreams::open() {
         // --- Build pipeline ---
         dai::Pipeline pipeline;
 
-        // RGB camera — 1280×720, interleaved RGB (required for GL_RGB upload)
+        // RGB camera — 1920×1080, interleaved RGB (required for GL_RGB upload)
         auto cam = pipeline.create<dai::node::ColorCamera>();
-        cam->setPreviewSize(1280, 720);
+        cam->setPreviewSize(1920, 1080);
         cam->setInterleaved(true);   // REQUIRED for GL_RGB — false outputs planar CHW
         cam->setColorOrder(dai::ColorCameraProperties::ColorOrder::RGB);
         cam->setFps(30);
@@ -126,8 +126,8 @@ void OakStreams::open() {
             cfg.postProcessing.speckleFilter.speckleRange = 50;
             cfg.postProcessing.temporalFilter.enable = true;
             // Invalidate edge pixels where stereo has no valid disparity.
-            // Removes the blue/cyan fringe at image boundaries.
-            // 32px covers the top/right fringe from the stereo baseline offset.
+            // This operates in the stereo-native resolution (640×400), not the
+            // aligned output. 32px was calibrated for 640-wide native space.
             cfg.algorithmControl.numInvalidateEdgePixels = 32;
             stereo->initialConfig.set(cfg);
         }
@@ -173,36 +173,27 @@ void OakStreams::open() {
         queueSpatial_       = device_->getOutputQueue("spatial",       4, false);
         queueSpatialConfig_ = device_->getInputQueue("spatialConfig");
 
-        // --- Allocate staging buffers ---
-        depthRgbBuf_.resize(640 * 400 * 3);  // Turbo-colored RGB for GL upload
-        depthBuf_.resize(640 * 400);          // raw uint16 mm values for histogram
-        depthEma_.assign(640 * 400, 0.0f);   // temporal EMA — starts at zero (no history)
-
-        // --- Create RGB GL texture (1280×720) ---
-        // 1280×3 = 3840 bytes/row — set alignment=1 to be safe (matches Stage 2 working pattern)
+        // --- Create RGB GL texture (1920×1080) ---
+        // 1920×3 = 5760 bytes/row — set alignment=1 to be safe (matches Stage 2 working pattern)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glGenTextures(1, &rgbTex_);
         glBindTexture(GL_TEXTURE_2D, rgbTex_);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-            1280, 720, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        // --- Create depth GL texture (640×400) ---
-        // 640×3 = 1920 bytes/row — 4-byte aligned, no alignment change needed
-        glGenTextures(1, &depthTex_);
-        glBindTexture(GL_TEXTURE_2D, depthTex_);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-            640, 400, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+            1920, 1080, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);  // restore default
 
+        // Depth buffers and GL texture are created lazily on the first depth frame
+        // because setDepthAlign() may change the output resolution to match the
+        // aligned camera (e.g., RGB at 1920×1080 instead of stereo-native 640×400).
+        depthW_ = 0;
+        depthH_ = 0;
+
         streaming_ = true;
-        fprintf(stderr, "OakStreams: opened — RGB 1280x720, Depth 640x400 @ 30fps\n");
+        fprintf(stderr, "OakStreams: opened — RGB 1920x1080, Depth size determined on first frame\n");
 
     } catch (const std::exception& e) {
         fprintf(stderr, "OakStreams::open failed: %s\n", e.what());
@@ -250,7 +241,7 @@ void OakStreams::poll() {
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glBindTexture(GL_TEXTURE_2D, rgbTex_);
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
-                1280, 720,
+                1920, 1080,
                 GL_RGB, GL_UNSIGNED_BYTE,
                 rgbFrame->getData().data());
             glBindTexture(GL_TEXTURE_2D, 0);
@@ -264,18 +255,32 @@ void OakStreams::poll() {
             // The on-device temporal filter consumes multiple input frames per
             // output, making sequence gaps expected rather than indicative of
             // actual data loss.
+
+            // --- Lazy init: size buffers and GL texture from the actual frame ---
+            // setDepthAlign() can change the depth output resolution to match the
+            // aligned camera, so we derive dimensions from the real frame rather
+            // than hardcoding stereo-native 640×400.
+            const int W = (int)depthFrame->getWidth();
+            const int H = (int)depthFrame->getHeight();
+            if (W != depthW_ || H != depthH_) {
+                depthW_ = W;
+                depthH_ = H;
+                const int pc = W * H;
+                depthRgbBuf_.resize(pc * 3);
+                depthBuf_.resize(pc);
+                depthEma_.assign(pc, 0.0f);
+                if (depthTex_ == 0) glGenTextures(1, &depthTex_);
+                glBindTexture(GL_TEXTURE_2D, depthTex_);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, W, H, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+                glBindTexture(GL_TEXTURE_2D, 0);
+                fprintf(stderr, "OakStreams: depth frame size = %d×%d\n", W, H);
+            }
+
             const auto& data = depthFrame->getData();
             const uint16_t* depthData = reinterpret_cast<const uint16_t*>(data.data());
-            const int pixelCount = 640 * 400;
-
-            // Copy raw depth values for histogram access
-            std::copy(depthData, depthData + pixelCount, depthBuf_.data());
-
-            // --- Host-side temporal EMA (Step 2 of flicker reduction) ---
-            // Blend each pixel's depth with a running average to smooth jitter.
-            // Alpha = 0.3 → moderate smoothing; lower = smoother but laggier.
-            constexpr int W = 640;
-            constexpr int H = 400;
+            const int pixelCount = W * H;
             constexpr float kEmaAlpha = 0.3f;
             float* ema = depthEma_.data();
             for (int i = 0; i < pixelCount; ++i) {
@@ -332,7 +337,7 @@ void OakStreams::poll() {
 
             glBindTexture(GL_TEXTURE_2D, depthTex_);
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
-                640, 400,
+                W, H,
                 GL_RGB, GL_UNSIGNED_BYTE,
                 depthRgbBuf_.data());
             glBindTexture(GL_TEXTURE_2D, 0);

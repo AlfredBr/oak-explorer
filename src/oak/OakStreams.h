@@ -42,10 +42,10 @@ public:
     // GL textures for rendering
     GLuint rgbTextureId()   const { return rgbTex_; }
     GLuint depthTextureId() const { return depthTex_; }
-    int    rgbWidth()       const { return 1280; }
-    int    rgbHeight()      const { return 720; }
-    int    depthWidth()     const { return 640; }
-    int    depthHeight()    const { return 400; }
+    int    rgbWidth()       const { return 1920; }
+    int    rgbHeight()      const { return 1080; }
+    int    depthWidth()     const { return depthW_; }
+    int    depthHeight()    const { return depthH_; }
 
     // Raw uint16 depth values in mm, 0 = invalid. Updated each poll().
     // Used by DepthView to build the ImPlot histogram.
@@ -53,7 +53,7 @@ public:
     int             depthPixelCount() const { return depthWidth() * depthHeight(); }
 
     // Send an updated ROI to the SpatialLocationCalculator.
-    // normX, normY are in [0,1] relative to the 1280×720 RGB image.
+    // normX, normY are in [0,1] relative to the 1920×1080 RGB image.
     // ROI is fixed at 5%×5% of the frame (±0.025 around the centre).
     // Safe to call every frame in Track mode — sends only when streaming.
     void setRoi(float normX, float normY);
@@ -77,9 +77,12 @@ private:
     GLuint rgbTex_   = 0;
     GLuint depthTex_ = 0;
 
-    std::vector<uint8_t>  depthRgbBuf_;  // 640*400*3 — Turbo-colored staging buffer
-    std::vector<uint16_t> depthBuf_;     // 640*400   — raw depth values for histogram
-    std::vector<float>    depthEma_;     // 640*400   — temporal EMA of depth (float to avoid quantization drift)
+    int depthW_ = 0;  // actual depth frame width  — set on first frame
+    int depthH_ = 0;  // actual depth frame height — set on first frame
+
+    std::vector<uint8_t>  depthRgbBuf_;  // depthW_*depthH_*3 — Turbo-colored staging buffer
+    std::vector<uint16_t> depthBuf_;     // depthW_*depthH_   — raw depth values for histogram
+    std::vector<float>    depthEma_;     // depthW_*depthH_   — temporal EMA of depth (float to avoid quantization drift)
 
     int     droppedRgb_   = 0;
     int     droppedDepth_ = 0;

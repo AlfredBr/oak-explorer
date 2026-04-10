@@ -13,12 +13,46 @@
 #include "ui/SpatialMode.h"
 
 #include <cstdio>
+#include <string>
+#include <windows.h>
+
+// Returns the directory containing this executable (no trailing slash).
+static std::string exeDir() {
+    char buf[MAX_PATH];
+    DWORD len = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    if (len == 0) return ".";
+    std::string s(buf, len);
+    size_t slash = s.rfind('\\');
+    return (slash != std::string::npos) ? s.substr(0, slash) : ".";
+}
+
+// GLFW window geometry persisted next to the exe in window.ini.
+struct WindowGeom { int x = 100, y = 100, w = 1536, h = 864; };
+
+static WindowGeom loadWindowGeom(const std::string& path) {
+    WindowGeom g;
+    FILE* f = fopen(path.c_str(), "r");
+    if (f) { fscanf(f, "%d %d %d %d", &g.x, &g.y, &g.w, &g.h); fclose(f); }
+    return g;
+}
+
+static void saveWindowGeom(const std::string& path, GLFWwindow* win) {
+    int x, y, w, h;
+    glfwGetWindowPos(win, &x, &y);
+    glfwGetWindowSize(win, &w, &h);
+    FILE* f = fopen(path.c_str(), "w");
+    if (f) { fprintf(f, "%d %d %d %d\n", x, y, w, h); fclose(f); }
+}
 
 static void glfwErrorCallback(int error, const char* description) {
     fprintf(stderr, "GLFW error %d: %s\n", error, description);
 }
 
 int main() {
+    const std::string dir      = exeDir();
+    const std::string iniPath  = dir + "\\imgui.ini";
+    const std::string winPath  = dir + "\\window.ini";
+
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) return 1;
 
@@ -27,8 +61,10 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "oak-explorer", nullptr, nullptr);
+    WindowGeom geom = loadWindowGeom(winPath);
+    GLFWwindow* window = glfwCreateWindow(geom.w, geom.h, "oak-explorer", nullptr, nullptr);
     if (!window) { glfwTerminate(); return 1; }
+    glfwSetWindowPos(window, geom.x, geom.y);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // vsync
 
@@ -39,6 +75,7 @@ int main() {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.IniFilename = iniPath.c_str();   // persist next to exe, not cwd
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -87,6 +124,9 @@ int main() {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
     }
+
+    // Save window geometry before teardown
+    saveWindowGeom(winPath, window);
 
     // Cleanup — GL resources must be freed while context is still active
     streams.close();

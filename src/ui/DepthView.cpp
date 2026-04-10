@@ -44,13 +44,14 @@ void renderDepthView(const oak::OakStreams& streams) {
                 }
             }
 
+            ImGui::Text("valid=%d / total=%d", (int)validDepths.size(), count);
+
             // Fill the entire window content area
             ImVec2 plotSize = ImGui::GetContentRegionAvail();
             if (ImPlot::BeginPlot("##depth_dist", plotSize)) {
                 ImPlot::SetupAxes("Depth (mm)", "Pixels");
                 ImPlot::SetupAxisLimits(ImAxis_X1, 400.0, 10000.0, ImPlotCond_Always);
-                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Once);
-                ImPlot::SetupAxisZoomConstraints(ImAxis_Y1, 1.0, HUGE_VAL);  // prevent Y min going below 0
+                ImPlot::SetupAxis(ImAxis_Y1, nullptr, ImPlotAxisFlags_AutoFit);
                 if (!validDepths.empty()) {
                     ImPlot::PlotHistogram("##depth",
                         validDepths.data(),
