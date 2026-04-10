@@ -17,6 +17,8 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 **Observations from final verification:**
 - ~~Dropped depth frame counter is high (2677) — likely an artifact of the on-device temporal filter consuming frames for its internal blending pipeline, not actual data loss~~ → Fixed: removed misleading depth dropped counter from sidebar
 - ~~Histogram auto-range shows negative X values — may need axis limits fixed in a future pass~~ → Fixed: X-axis locked to 400–10000mm with `ImPlotCond_Always`
+- Histogram moved to its own resizable "Depth Distribution" window — plot fills entire content area
+- Y-axis zoom constrained so pixel counts can't go negative
 
 ---
 
