@@ -122,6 +122,9 @@ void OakStreams::open() {
             cfg.postProcessing.speckleFilter.enable = true;
             cfg.postProcessing.speckleFilter.speckleRange = 50;
             cfg.postProcessing.temporalFilter.enable = true;
+            // Invalidate edge pixels where stereo has no valid disparity.
+            // Removes the blue/cyan fringe at image boundaries.
+            cfg.algorithmControl.numInvalidateEdgePixels = 16;
             stereo->initialConfig.set(cfg);
         }
 

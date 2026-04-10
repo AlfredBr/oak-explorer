@@ -20,6 +20,9 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 - Histogram moved to its own resizable "Depth Distribution" window — plot fills entire content area
 - Y-axis zoom constrained so pixel counts can't go negative
 
+### Edge Fringe Fix (Fix C)
+- Blue/cyan fringe at stereo boundaries removed via `numInvalidateEdgePixels = 16` — VPU zeros out the outer 16 pixels of the disparity frame where stereo has no valid correspondence. Existing EMA + hole-fill handle these invalidated pixels gracefully.
+
 ---
 
 ## Decisions Made
