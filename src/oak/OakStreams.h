@@ -79,6 +79,7 @@ private:
 
     std::vector<uint8_t>  depthRgbBuf_;  // 640*400*3 — Turbo-colored staging buffer
     std::vector<uint16_t> depthBuf_;     // 640*400   — raw depth values for histogram
+    std::vector<float>    depthEma_;     // 640*400   — temporal EMA of depth (float to avoid quantization drift)
 
     int     droppedRgb_   = 0;
     int     droppedDepth_ = 0;

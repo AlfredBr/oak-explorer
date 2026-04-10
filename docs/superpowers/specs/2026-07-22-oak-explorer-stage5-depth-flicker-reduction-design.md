@@ -31,7 +31,7 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 | Step | What | Risk | Status |
 |------|------|------|--------|
 | **1** | Enable on-device StereoDepth filters (LR-check, median, speckle, temporal) | Very low — pipeline config only | ✅ Done |
-| **2** | Host-side temporal EMA blending of raw depth buffer | Low — adds one extra buffer | Planned |
+| **2** | Host-side temporal EMA blending of raw depth buffer | Low — adds one extra buffer | ✅ Done |
 | **3** | Fill invalid (zero) pixels with nearest-neighbor interpolation | Low — post-process on existing buffer | Planned |
 
 ---
@@ -61,3 +61,33 @@ Four on-device filters enabled in `OakStreams::open()` on the `StereoDepth` pipe
 | File | Change |
 |------|--------|
 | `src/oak/OakStreams.cpp` | Added filter configuration block (lines 114–126) in `open()` after `setDefaultProfilePreset()` |
+
+---
+
+## Step 2 — Host-Side Temporal EMA (Completed)
+
+### What Changed
+
+Added a per-pixel exponential moving average (EMA) buffer that blends each new depth frame with the running history before applying the Turbo colormap.
+
+| Component | Detail |
+|-----------|--------|
+| New member | `std::vector<float> depthEma_` (640×400) in `OakStreams` |
+| Alpha | 0.3 — moderate smoothing (lower = smoother but laggier) |
+| Invalid pixels | Zero-value pixels don't corrupt the EMA; the previous smoothed value persists |
+| Seeding | First valid sample for each pixel seeds the EMA directly (no blend) |
+| Colormap source | Changed from raw `depthData[i]` to `ema[i]` for the Turbo LUT lookup |
+
+### Why This Is Safe
+
+- Adds one `float` buffer (640×400×4 = ~1 MB) — negligible memory
+- Same single-threaded `poll()` loop — no concurrency changes
+- Raw `depthBuf_` still copied from the device frame unchanged — histogram is unaffected
+- The EMA loop and colormap loop are separate passes over the same pixel count
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/oak/OakStreams.h` | Added `depthEma_` member |
+| `src/oak/OakStreams.cpp` | Allocate in `open()`, clear in `close()`, EMA blend + colormap in `poll()` |

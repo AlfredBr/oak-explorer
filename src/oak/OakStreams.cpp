@@ -169,6 +169,7 @@ void OakStreams::open() {
         // --- Allocate staging buffers ---
         depthRgbBuf_.resize(640 * 400 * 3);  // Turbo-colored RGB for GL upload
         depthBuf_.resize(640 * 400);          // raw uint16 mm values for histogram
+        depthEma_.assign(640 * 400, 0.0f);   // temporal EMA — starts at zero (no history)
 
         // --- Create RGB GL texture (1280×720) ---
         // 1280×3 = 3840 bytes/row — set alignment=1 to be safe (matches Stage 2 working pattern)
@@ -225,6 +226,7 @@ void OakStreams::close() {
     }
     depthRgbBuf_.clear();
     depthBuf_.clear();
+    depthEma_.clear();
 }
 
 void OakStreams::poll() {
@@ -262,12 +264,31 @@ void OakStreams::poll() {
             // Copy raw depth values for histogram access
             std::copy(depthData, depthData + pixelCount, depthBuf_.data());
 
-            // Apply Turbo colormap: close (400mm) → idx 255 (red), far (10000mm) → idx 0 (purple)
+            // --- Host-side temporal EMA (Step 2 of flicker reduction) ---
+            // Blend each pixel's depth with a running average to smooth jitter.
+            // Alpha = 0.3 → moderate smoothing; lower = smoother but laggier.
+            constexpr float kEmaAlpha = 0.3f;
+            float* ema = depthEma_.data();
+            for (int i = 0; i < pixelCount; ++i) {
+                float raw = (float)depthData[i];
+                if (raw == 0.0f) {
+                    // Invalid pixel — keep previous EMA value (don't corrupt history)
+                    continue;
+                }
+                if (ema[i] == 0.0f) {
+                    // First valid sample for this pixel — seed directly
+                    ema[i] = raw;
+                } else {
+                    ema[i] = kEmaAlpha * raw + (1.0f - kEmaAlpha) * ema[i];
+                }
+            }
+
+            // Apply Turbo colormap using the smoothed EMA values
             uint8_t* rgbBuf = depthRgbBuf_.data();
             for (int i = 0; i < pixelCount; ++i) {
-                uint16_t d = depthData[i];
-                if (d == 0) {
-                    // Invalid pixel — black
+                float d = ema[i];
+                if (d == 0.0f) {
+                    // No valid depth ever seen — black
                     rgbBuf[i*3] = rgbBuf[i*3+1] = rgbBuf[i*3+2] = 0;
                     continue;
                 }

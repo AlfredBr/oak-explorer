@@ -49,21 +49,21 @@
 
 ---
 
-## Task 2: Host-side temporal EMA (Planned)
+## Task 2: Host-side temporal EMA ✅
 
 **Files:**
 - Modify: `src/oak/OakStreams.h` — add `std::vector<float> depthEma_` member
 - Modify: `src/oak/OakStreams.cpp` — blend current depth frame with EMA history in `poll()`
 
-- [ ] **Step 1: Add EMA buffer**
+- [x] **Step 1: Add EMA buffer**
   Add `std::vector<float> depthEma_` (640×400) to `OakStreams`, allocate in `open()`, clear in `close()`.
 
-- [ ] **Step 2: Blend in poll()**
+- [x] **Step 2: Blend in poll()**
   After copying raw depth to `depthBuf_`, blend each pixel: `ema[i] = alpha * raw[i] + (1-alpha) * ema[i]`.
   Use the EMA result for the Turbo colormap instead of the raw value.
-  Skip blending for invalid (zero) pixels.
+  Skip blending for invalid (zero) pixels. First valid sample seeds directly.
 
-- [ ] **Step 3: Build and visual test**
+- [x] **Step 3: Build and visual test**
 
 ---
 
