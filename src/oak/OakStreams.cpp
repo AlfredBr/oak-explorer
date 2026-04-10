@@ -283,6 +283,29 @@ void OakStreams::poll() {
                 }
             }
 
+            // --- Host-side hole fill (Step 3 of flicker reduction) ---
+            // Fill pixels that have never received a valid depth sample by
+            // averaging valid neighbors in a 3×3 window. Single pass, in-place.
+            constexpr int W = 640;
+            constexpr int H = 400;
+            for (int y = 0; y < H; ++y) {
+                for (int x = 0; x < W; ++x) {
+                    int idx = y * W + x;
+                    if (ema[idx] != 0.0f) continue;  // already valid
+                    float sum = 0.0f;
+                    int   cnt = 0;
+                    for (int dy = -1; dy <= 1; ++dy) {
+                        for (int dx = -1; dx <= 1; ++dx) {
+                            int nx = x + dx, ny = y + dy;
+                            if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+                            float v = ema[ny * W + nx];
+                            if (v != 0.0f) { sum += v; ++cnt; }
+                        }
+                    }
+                    if (cnt > 0) ema[idx] = sum / (float)cnt;
+                }
+            }
+
             // Apply Turbo colormap using the smoothed EMA values
             uint8_t* rgbBuf = depthRgbBuf_.data();
             for (int i = 0; i < pixelCount; ++i) {

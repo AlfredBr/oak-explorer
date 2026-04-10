@@ -67,12 +67,12 @@
 
 ---
 
-## Task 3: Fill invalid pixels (Planned)
+## Task 3: Fill invalid pixels ✅
 
 **Files:**
 - Modify: `src/oak/OakStreams.cpp` — add nearest-neighbor fill pass in `poll()` before colormap
 
-- [ ] **Step 1: Add fill pass**
-  After EMA blending (or raw copy if Task 2 skipped), scan for zero pixels and replace with nearest valid neighbor in a small radius.
+- [x] **Step 1: Add fill pass**
+  After EMA blending, scan for zero pixels in `depthEma_` and replace with average of valid 3×3 neighbors. Single pass, in-place.
 
-- [ ] **Step 2: Build and visual test**
+- [x] **Step 2: Build and visual test**

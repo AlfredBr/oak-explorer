@@ -34,7 +34,7 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 |------|------|------|--------|
 | **1** | Enable on-device StereoDepth filters (LR-check, median, speckle, temporal) | Very low — pipeline config only | ✅ Done |
 | **2** | Host-side temporal EMA blending of raw depth buffer | Low — adds one extra buffer | ✅ Done |
-| **3** | Fill invalid (zero) pixels with nearest-neighbor interpolation | Low — post-process on existing buffer | Planned |
+| **3** | Fill invalid (zero) pixels with nearest-neighbor interpolation | Low — post-process on existing buffer | ✅ Done |
 
 ---
 
@@ -93,3 +93,32 @@ Added a per-pixel exponential moving average (EMA) buffer that blends each new d
 |------|--------|
 | `src/oak/OakStreams.h` | Added `depthEma_` member |
 | `src/oak/OakStreams.cpp` | Allocate in `open()`, clear in `close()`, EMA blend + colormap in `poll()` |
+
+---
+
+## Step 3 — Hole Fill for Invalid Pixels (Completed)
+
+### What Changed
+
+Added a single-pass 3×3 nearest-neighbor fill between the EMA blend and the Turbo colormap. For each pixel where `ema[i] == 0.0f` (never received a valid depth), it averages the valid neighbors in the 3×3 window.
+
+| Component | Detail |
+|-----------|--------|
+| Location | In `poll()`, after EMA loop, before colormap loop |
+| Window | 3×3 (8-connected neighbors) |
+| Condition | Only fills pixels with `ema == 0` — valid pixels untouched |
+| Boundary | Edge pixels check bounds; if no valid neighbors, pixel stays black |
+| In-place | Writes back into `depthEma_` — subsequent colormap reads the filled value |
+
+### Why This Is Safe
+
+- Single pass over 640×400 pixels — no iterative flood fill
+- Only modifies pixels that were already rendering as black
+- No buffer allocation, no new members, no data flow changes
+- In-place on `depthEma_` — the filled values persist and improve over time as EMA accumulates
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/oak/OakStreams.cpp` | Added 3×3 hole-fill loop in `poll()` between EMA and colormap |
