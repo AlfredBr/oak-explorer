@@ -12,6 +12,8 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 
 **Milestone:** Depth heatmap is visually stable. Speckles are reduced. Frame-to-frame flicker is eliminated. No changes to buffer layouts, data flow, or host-side processing (Step 1).
 
+**Verified:** Steps 1+2 confirmed working — depth image is dramatically more stable with clear silhouettes, smooth color gradients, and minimal flicker at 59.6 FPS. Some remaining black/cyan spots at occlusion edges (Step 3 target).
+
 ---
 
 ## Decisions Made
