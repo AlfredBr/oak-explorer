@@ -43,8 +43,7 @@ void renderSidebar(const oak::OakDevice& device,
             ImGui::Spacing();
 
             ImGui::TextDisabled("Dropped frames");
-            ImGui::Text("RGB:   %d", streams.droppedRgbFrames());
-            ImGui::Text("Depth: %d", streams.droppedDepthFrames());
+            ImGui::Text("RGB: %d", streams.droppedRgbFrames());
         } else {
             ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
                 info.available ? "Unbooted (ready)" : "Booted / in use");

@@ -36,7 +36,9 @@ void renderDepthView(const oak::OakStreams& streams) {
 
             if (ImPlot::BeginPlot("Depth Distribution", ImVec2(-1, 160))) {
                 ImPlot::SetupAxes("Depth (mm)", "Pixels");
-                ImPlot::SetupAxesLimits(400.0, 10000.0, 0.0, 1.0, ImPlotCond_Once);
+                // Lock X to valid depth range; let Y auto-fit each frame
+                ImPlot::SetupAxisLimits(ImAxis_X1, 400.0, 10000.0, ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Once);
                 if (!validDepths.empty()) {
                     ImPlot::PlotHistogram("##depth",
                         validDepths.data(),

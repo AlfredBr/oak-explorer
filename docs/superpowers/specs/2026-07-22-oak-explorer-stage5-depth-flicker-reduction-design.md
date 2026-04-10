@@ -15,8 +15,8 @@ The raw stereo depth image flickers badly — noisy frame-to-frame variation, sa
 **Verified:** All 3 steps confirmed working — depth image is stable with clear silhouettes, smooth color gradients, and minimal flicker at 59.9 FPS (Release build). Remaining edge artifacts are minimal blue/cyan fringe at stereo occlusion boundaries.
 
 **Observations from final verification:**
-- Dropped depth frame counter is high (2677) — likely an artifact of the on-device temporal filter consuming frames for its internal blending pipeline, not actual data loss
-- Histogram auto-range shows negative X values — may need axis limits fixed in a future pass
+- ~~Dropped depth frame counter is high (2677) — likely an artifact of the on-device temporal filter consuming frames for its internal blending pipeline, not actual data loss~~ → Fixed: removed misleading depth dropped counter from sidebar
+- ~~Histogram auto-range shows negative X values — may need axis limits fixed in a future pass~~ → Fixed: X-axis locked to 400–10000mm with `ImPlotCond_Always`
 
 ---
 

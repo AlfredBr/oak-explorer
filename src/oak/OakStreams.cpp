@@ -253,10 +253,10 @@ void OakStreams::poll() {
         // --- Depth frame ---
         auto depthFrame = queueDepth_->tryGet<dai::ImgFrame>();
         if (depthFrame) {
-            int64_t seq = depthFrame->getSequenceNum();
-            if (lastDepthSeq_ >= 0 && seq > lastDepthSeq_ + 1)
-                droppedDepth_ += (int)(seq - lastDepthSeq_ - 1);
-            lastDepthSeq_ = seq;
+            // Note: sequence-gap dropped-frame counting is disabled for depth.
+            // The on-device temporal filter consumes multiple input frames per
+            // output, making sequence gaps expected rather than indicative of
+            // actual data loss.
             const auto& data = depthFrame->getData();
             const uint16_t* depthData = reinterpret_cast<const uint16_t*>(data.data());
             const int pixelCount = 640 * 400;
