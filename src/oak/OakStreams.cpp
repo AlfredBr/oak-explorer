@@ -268,13 +268,25 @@ void OakStreams::poll() {
             // Copy raw depth values for histogram access
             std::copy(depthData, depthData + pixelCount, depthBuf_.data());
 
+            // --- Host-side top-edge mask (Fix C) ---
+            // The stereo top edge has more noise than the sides due to
+            // rectification geometry. Zero out the top 48 rows so they
+            // don't corrupt the EMA. The hole-fill pass will interpolate
+            // a smooth border from the valid rows below.
+            constexpr int kTopMaskRows = 48;
+            constexpr int W = 640;
+            constexpr int H = 400;
+            for (int i = 0; i < kTopMaskRows * W; ++i) {
+                depthBuf_[i] = 0;
+            }
+
             // --- Host-side temporal EMA (Step 2 of flicker reduction) ---
             // Blend each pixel's depth with a running average to smooth jitter.
             // Alpha = 0.3 → moderate smoothing; lower = smoother but laggier.
             constexpr float kEmaAlpha = 0.3f;
             float* ema = depthEma_.data();
             for (int i = 0; i < pixelCount; ++i) {
-                float raw = (float)depthData[i];
+                float raw = (float)depthBuf_[i];  // read from masked buffer, not raw device data
                 if (raw == 0.0f) {
                     // Invalid pixel — keep previous EMA value (don't corrupt history)
                     continue;
@@ -290,8 +302,6 @@ void OakStreams::poll() {
             // --- Host-side hole fill (Step 3 of flicker reduction) ---
             // Fill pixels that have never received a valid depth sample by
             // averaging valid neighbors in a 3×3 window. Single pass, in-place.
-            constexpr int W = 640;
-            constexpr int H = 400;
             for (int y = 0; y < H; ++y) {
                 for (int x = 0; x < W; ++x) {
                     int idx = y * W + x;
