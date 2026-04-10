@@ -20,11 +20,21 @@ void renderDepthView(const oak::OakStreams& streams) {
                 (ImTextureID)(uintptr_t)streams.depthTextureId(),
                 ImVec2(avail, avail * aspect)
             );
+        } else {
+            ImGui::Spacing();
+            ImGui::TextDisabled("No stream");
+            ImGui::TextDisabled("Device not connected or pipeline failed.");
+        }
+    }
+    ImGui::End();
 
-            // --- ImPlot histogram ---
-            // Build vector of valid (non-zero) depth values for this frame
-            const uint16_t* raw    = streams.rawDepthData();  // valid until next poll()
-            const int       count  = streams.depthPixelCount();
+    // --- Depth Distribution — separate resizable window ---
+    ImGui::SetNextWindowPos(ImVec2(240, 560), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 300), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Depth Distribution")) {
+        if (streams.isStreaming()) {
+            const uint16_t* raw   = streams.rawDepthData();
+            const int       count = streams.depthPixelCount();
 
             std::vector<float> validDepths;
             validDepths.reserve(count);
@@ -34,26 +44,24 @@ void renderDepthView(const oak::OakStreams& streams) {
                 }
             }
 
-            if (ImPlot::BeginPlot("Depth Distribution", ImVec2(-1, 160))) {
+            // Fill the entire window content area
+            ImVec2 plotSize = ImGui::GetContentRegionAvail();
+            if (ImPlot::BeginPlot("##depth_dist", plotSize)) {
                 ImPlot::SetupAxes("Depth (mm)", "Pixels");
-                // Lock X to valid depth range; let Y auto-fit each frame
                 ImPlot::SetupAxisLimits(ImAxis_X1, 400.0, 10000.0, ImPlotCond_Always);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Once);
                 if (!validDepths.empty()) {
                     ImPlot::PlotHistogram("##depth",
                         validDepths.data(),
                         (int)validDepths.size(),
-                        100,                // 100 bins
-                        1.0,                // bar scale
+                        100,
+                        1.0,
                         ImPlotRange(400.0, 10000.0));
                 }
                 ImPlot::EndPlot();
             }
-
         } else {
-            ImGui::Spacing();
             ImGui::TextDisabled("No stream");
-            ImGui::TextDisabled("Device not connected or pipeline failed.");
         }
     }
     ImGui::End();
