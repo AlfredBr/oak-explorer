@@ -16,7 +16,7 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 | 2 | Camera Streams — live RGB frame as ImGui texture | ✅ Complete |
 | 3 | Depth & Stereo — StereoDepth node, heatmap, depth math | ✅ Complete |
 | 4 | Spatial Data — click pixel → XYZ in metres | ✅ Complete |
-| 5 | CUDA Acceleration — RTX GPU kernels, OpenGL PBO interop | ⬜ Planned |
+| 5 | Depth Stability — on-device filtering and host-side smoothing | ✅ Complete (CUDA deferred) |
 | 6 | Neural Inference — .blob model on OAK VPU, detection overlays | ⬜ Planned |
 
 ---
@@ -26,7 +26,7 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 - `CameraStream` class builds a depthai pipeline (ColorCamera → XLinkOut), opens the device, and owns the GL texture
 - `StreamView` UI panel renders the live frame via `ImGui::Image()`, scaled to fill available width
 - Sidebar shows "Streaming" in green when the pipeline is active
-- App runs gracefully with no device connected — shows "No stream" placeholder
+- App shows a "No stream" placeholder and retries connection when no device is connected
 
 ![Stage 2 screenshot — Camera window showing live RGB frame, sidebar showing Streaming](stage2.png)
 
@@ -34,7 +34,7 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 
 ## Stage 4 — What It Does
 
-- `SpatialLocationCalculator` node wired to `StereoDepth` output — averages depth over a 5%×5% ROI and returns real-world XYZ coordinates using the camera's built-in intrinsics
+- `SpatialLocationCalculator` node wired to `StereoDepth` output — uses the median depth in a 5%×5% ROI and returns real-world XYZ coordinates using the camera's built-in intrinsics
 - `XLinkIn` ("spatialConfig") receives `SpatialLocationsConfig` packets from host when the ROI changes — the reverse of the normal device→host data flow
 - `StreamView` detects mouse clicks (Lock mode) or hover position (Track mode) and calls `streams.setRoi()` with normalised coordinates
 - Corner-bracket reticle drawn via `ImGui::GetWindowDrawList()` marks the current sample point
@@ -44,10 +44,18 @@ Built with ImGui + OpenGL3 + GLFW. The goal is to build up a single growing appl
 
 ---
 
+## Stage 5 — What It Does
+
+- StereoDepth applies left-right, median, speckle, and temporal filtering on the device
+- Host-side temporal smoothing and invalid-pixel filling stabilize the displayed depth heatmap
+- CUDA acceleration remains deferred; this stage uses the OAK device and CPU instead
+
+---
+
 ## Stage 3 — What It Does
 
 - `MonoCamera` left/right nodes feed a `StereoDepth` node configured with the `HIGH_DENSITY` preset
-- Depth output is uint16 mm values via `stereo->depth` (not disparity) — streamed at 640×400
+- Depth output is uint16 mm values via `stereo->depth` (not disparity), aligned to the RGB camera; dimensions are taken from the incoming frame
 - Turbo colormap LUT (256 entries) applied on CPU each frame: close pixels → red, far → purple, invalid (0) → black
 - `DepthView` panel renders the heatmap texture and an ImPlot histogram of valid depth values
 - Raw uint16 depth buffer exposed via `rawDepthData()` for the histogram; pointer valid only until next `poll()`

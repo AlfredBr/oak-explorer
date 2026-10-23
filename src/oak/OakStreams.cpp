@@ -79,6 +79,12 @@ OakStreams::OakStreams()  = default;
 OakStreams::~OakStreams() { close(); }
 
 void OakStreams::open() {
+    close();
+    droppedRgb_ = 0;
+    droppedDepth_ = 0;
+    lastRgbSeq_ = -1;
+    lastDepthSeq_ = -1;
+
     try {
         // --- Build pipeline ---
         dai::Pipeline pipeline;
@@ -281,6 +287,7 @@ void OakStreams::poll() {
             const auto& data = depthFrame->getData();
             const uint16_t* depthData = reinterpret_cast<const uint16_t*>(data.data());
             const int pixelCount = W * H;
+            std::copy_n(depthData, pixelCount, depthBuf_.data());
             constexpr float kEmaAlpha = 0.3f;
             float* ema = depthEma_.data();
             for (int i = 0; i < pixelCount; ++i) {
