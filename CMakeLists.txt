@@ -29,10 +29,6 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-if(WIN32)
-    target_sources(oak-explorer PRIVATE src/oak-explorer.rc)
-endif()
-
 # --- ImPlot sources (vendored) ---
 set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/third_party/implot)
 
@@ -48,6 +44,10 @@ add_executable(oak-explorer
     ${IMPLOT_DIR}/implot.cpp
     ${IMPLOT_DIR}/implot_items.cpp
 )
+
+if(WIN32)
+    target_sources(oak-explorer PRIVATE src/oak-explorer.rc)
+endif()
 
 target_include_directories(oak-explorer PRIVATE
     src/
