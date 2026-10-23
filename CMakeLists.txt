@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(oak-explorer LANGUAGES CXX)
 
+if(WIN32)
+    enable_language(RC)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -24,6 +28,10 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
+
+if(WIN32)
+    target_sources(oak-explorer PRIVATE src/oak-explorer.rc)
+endif()
 
 # --- ImPlot sources (vendored) ---
 set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/third_party/implot)

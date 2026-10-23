@@ -17,6 +17,11 @@
 #include <string>
 #include <windows.h>
 
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+
+#include "resource.h"
+
 // Returns the directory containing this executable (no trailing slash).
 static std::string exeDir() {
     char buf[MAX_PATH];
@@ -49,6 +54,23 @@ static void glfwErrorCallback(int error, const char* description) {
     fprintf(stderr, "GLFW error %d: %s\n", error, description);
 }
 
+static void setWindowIcons(GLFWwindow* window, HICON& smallIcon, HICON& largeIcon) {
+    HINSTANCE instance = GetModuleHandleW(nullptr);
+    smallIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_APP_ICON),
+        IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+    largeIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_APP_ICON),
+        IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR));
+
+    if (!smallIcon || !largeIcon) {
+        fprintf(stderr, "Failed to load the application icon resource.\n");
+        return;
+    }
+
+    HWND hwnd = glfwGetWin32Window(window);
+    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+    SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+}
+
 int main() {
     const std::string dir      = exeDir();
     const std::string iniPath  = dir + "\\imgui.ini";
@@ -66,6 +88,11 @@ int main() {
     GLFWwindow* window = glfwCreateWindow(geom.w, geom.h, "oak-explorer", nullptr, nullptr);
     if (!window) { glfwTerminate(); return 1; }
     glfwSetWindowPos(window, geom.x, geom.y);
+
+    HICON smallIcon = nullptr;
+    HICON largeIcon = nullptr;
+    setWindowIcons(window, smallIcon, largeIcon);
+
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // vsync
 
@@ -140,6 +167,8 @@ int main() {
     ImPlot::DestroyContext();   // before ImGui::DestroyContext()
     ImGui::DestroyContext();
     glfwDestroyWindow(window);
+    if (smallIcon) DestroyIcon(smallIcon);
+    if (largeIcon) DestroyIcon(largeIcon);
     glfwTerminate();
     return 0;
 }
