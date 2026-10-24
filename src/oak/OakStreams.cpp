@@ -7,6 +7,9 @@
 #include <algorithm>  // std::clamp
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
+
+#include "detect/HostDetector.h"
 
 #ifdef OAK_USE_CUDA
 #include "cuda/DepthProcessor.h"
@@ -63,6 +66,26 @@ static constexpr uint8_t kTurboLut[256][3] = {
     {71,0,0},{67,0,0},{63,0,0},{58,0,0},{53,0,0},{47,0,0},{40,0,0},{30,0,0},
 };
 
+// Network input size. The 16:9 RGB preview is letterboxed into this square.
+static constexpr int kNnSize = 416;
+
+static const char* const kCocoLabels[80] = {
+    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+    "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse",
+    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+    "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush",
+};
+
+const char* detectionLabelName(int label) {
+    return (label >= 0 && label < 80) ? kCocoLabels[label] : "?";
+}
+
 void OakStreams::setRoi(float normX, float normY) {
     if (!streaming_) return;
 
@@ -88,6 +111,69 @@ void OakStreams::setRoi(float normX, float normY) {
 
 OakStreams::OakStreams()  = default;
 OakStreams::~OakStreams() { close(); }
+
+void OakStreams::setDetectorSource(DetectorSource source) {
+    source_ = source;
+    if (source != DetectorSource::HostGpu || hostState_ != HostDetectorState::Idle) return;
+
+    // Session creation compiles the model for the GPU and takes a few seconds,
+    // so it runs off the render thread.
+    hostState_ = HostDetectorState::Loading;
+    hostLoad_ = std::async(std::launch::async, [this, path = hostModelPath_]() {
+        std::string err;
+        auto detector = detect::HostDetector::create(path, err);
+        hostLoadError_ = err;
+        return detector;
+    });
+}
+
+void OakStreams::updateHostLoad() {
+    if (hostState_ != HostDetectorState::Loading) return;
+    if (hostLoad_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    host_ = hostLoad_.get();
+    if (host_) {
+        hostState_ = HostDetectorState::Ready;
+        fprintf(stderr, "OakStreams: host GPU detector ready\n");
+    } else {
+        hostState_ = HostDetectorState::Failed;
+        hostError_ = hostLoadError_;
+        fprintf(stderr, "OakStreams: host GPU detector failed: %s\n", hostError_.c_str());
+    }
+}
+
+// True when the median valid depth in the middle of the box is beyond the squelch limit.
+// A box with no valid depth readings is kept.
+bool OakStreams::boxBeyondSquelch(const Detection& d) const {
+    if (depthW_ != 1920 || depthH_ != 1080 || depthBuf_.empty()) return false;
+    const float w = d.xmax - d.xmin, h = d.ymax - d.ymin;
+    const int x0 = (int)((d.xmin + w * 0.25f) * depthW_), x1 = (int)((d.xmax - w * 0.25f) * depthW_);
+    const int y0 = (int)((d.ymin + h * 0.25f) * depthH_), y1 = (int)((d.ymax - h * 0.25f) * depthH_);
+    const int step = std::max(1, std::max(x1 - x0, y1 - y0) / 24);
+    std::vector<uint16_t> samples;
+    for (int y = std::clamp(y0, 0, depthH_ - 1); y < std::min(y1 + 1, depthH_); y += step)
+        for (int x = std::clamp(x0, 0, depthW_ - 1); x < std::min(x1 + 1, depthW_); x += step) {
+            const uint16_t v = depthBuf_[size_t(y) * depthW_ + x];
+            if (v) samples.push_back(v);
+        }
+    if (samples.empty()) return false;
+    std::nth_element(samples.begin(), samples.begin() + samples.size() / 2, samples.end());
+    return samples[samples.size() / 2] > squelchMaxMm_;
+}
+
+bool OakStreams::hasDetector() const {
+    return source_ == DetectorSource::Vpu ? hasDetector_ : hostState_ == HostDetectorState::Ready;
+}
+
+const std::vector<Detection>& OakStreams::detections() const {
+    return source_ == DetectorSource::Vpu ? detections_ : hostDetections_;
+}
+
+float OakStreams::detectionFps() const {
+    if (source_ == DetectorSource::Vpu) return detFps_;
+    return host_ ? host_->fps() : 0.0f;
+}
+
+float OakStreams::hostInferMs() const { return host_ ? host_->inferMs() : 0.0f; }
 
 bool OakStreams::usingCuda() const {
 #ifdef OAK_USE_CUDA
@@ -169,6 +255,38 @@ void OakStreams::open() {
         monoLeft->out.link(stereo->left);
         monoRight->out.link(stereo->right);
 
+        // --- Object detection (optional): RGB preview -> letterbox -> YOLO on the VPU ---
+        const bool wantDetector = !modelPath_.empty() && std::filesystem::exists(modelPath_);
+        if (!modelPath_.empty() && !wantDetector)
+            fprintf(stderr, "OakStreams: model not found, detection disabled: %s\n", modelPath_.c_str());
+        if (wantDetector) {
+            auto manip = pipeline.create<dai::node::ImageManip>();
+            manip->initialConfig.setResizeThumbnail(kNnSize, kNnSize);
+            manip->initialConfig.setFrameType(dai::ImgFrame::Type::BGR888p);
+            manip->setMaxOutputFrameSize(kNnSize * kNnSize * 3);
+            manip->inputImage.setBlocking(false);
+            manip->inputImage.setQueueSize(1);
+            cam->preview.link(manip->inputImage);
+
+            // YOLOv6n, COCO 80 classes (anchor-free, so no anchors/masks)
+            auto yolo = pipeline.create<dai::node::YoloDetectionNetwork>();
+            yolo->setBlobPath(modelPath_);
+            yolo->setConfidenceThreshold(kMinDetectionConfidence);
+            yolo->setNumClasses(80);
+            yolo->setCoordinateSize(4);
+            yolo->setAnchors({});
+            yolo->setAnchorMasks({});
+            yolo->setIouThreshold(0.5f);
+            yolo->setNumInferenceThreads(2);
+            yolo->input.setBlocking(false);
+            yolo->input.setQueueSize(1);
+            manip->out.link(yolo->input);
+
+            auto xoutDet = pipeline.create<dai::node::XLinkOut>();
+            xoutDet->setStreamName("detections");
+            yolo->out.link(xoutDet->input);
+        }
+
         auto xoutDepth = pipeline.create<dai::node::XLinkOut>();
         xoutDepth->setStreamName("depth");
         stereo->depth.link(xoutDepth->input);   // depth output, NOT disparity — uint16 mm
@@ -208,8 +326,12 @@ void OakStreams::open() {
         queueRight_ = device_->getOutputQueue("right", 4, false);
         queueSpatial_       = device_->getOutputQueue("spatial",       4, false);
         queueSpatialConfig_ = device_->getInputQueue("spatialConfig");
+        if (wantDetector) {
+            queueDet_ = device_->getOutputQueue("detections", 2, false);
+            hasDetector_ = true;
+        }
 
-        // --- Create RGB GL texture (1920×1080) ---
+        // --- Create RGB
         // 1920×3 = 5760 bytes/row — set alignment=1 to be safe (matches Stage 2 working pattern)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glGenTextures(1, &rgbTex_);
@@ -250,6 +372,13 @@ void OakStreams::close() {
     pendingRight_.reset();
     queueSpatial_.reset();
     queueSpatialConfig_.reset();
+    queueDet_.reset();
+    hasDetector_ = false;
+    detections_.clear();
+    hostDetections_.clear();
+    detFps_ = 0.0f;
+    detCount_ = 0;
+    detWindowStart_ = 0.0;
     device_.reset();             // destructor stops pipeline
     hasSpatial_  = false;
     roiCenterX_  = 0.5f;
@@ -279,6 +408,7 @@ void OakStreams::close() {
 }
 
 void OakStreams::poll() {
+    updateHostLoad();
     if (!streaming_) return;
     try {
         // Only publish matching stereo pairs. Bound queue draining so a lagging
@@ -334,6 +464,31 @@ void OakStreams::poll() {
             if (lastRgbSeq_ >= 0 && seq > lastRgbSeq_ + 1)
                 droppedRgb_ += (int)(seq - lastRgbSeq_ - 1);
             lastRgbSeq_ = seq;
+
+            auto& rgbData = rgbFrame->getData();
+            const bool fullHd = rgbData.size() >= size_t(1920) * 1080 * 3;
+
+            // Unless the squelch is meant to limit detection too, detect on the untouched frame.
+            const bool hostActive = host_ && source_ == DetectorSource::HostGpu && fullHd;
+            const bool squelchActive = squelch_ && fullHd && depthW_ == 1920 && depthH_ == 1080;
+            if (hostActive && !(squelchActive && squelchDetection_))
+                host_->submit(rgbData.data(), 1920, 1080);
+
+            // Depth is aligned to the RGB camera, so pixels correspond 1:1 at 1920x1080.
+            if (squelchActive) {
+                const uint16_t* depth = depthBuf_.data();
+                uint8_t* px = rgbData.data();
+                const uint16_t maxMm = (uint16_t)std::clamp(squelchMaxMm_, 0.0f, 65535.0f);
+                const size_t n = size_t(1920) * 1080;
+                for (size_t i = 0; i < n; ++i) {
+                    const uint16_t d = depth[i];
+                    if (d == 0 ? squelchHideUnknown_ : d > maxMm)
+                        px[i * 3] = px[i * 3 + 1] = px[i * 3 + 2] = 0;
+                }
+                // The host model then only sees pixels inside the depth limit.
+                if (hostActive && squelchDetection_)
+                    host_->submit(rgbData.data(), 1920, 1080);
+            }
 
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glBindTexture(GL_TEXTURE_2D, rgbTex_);
@@ -477,6 +632,43 @@ void OakStreams::poll() {
                 GL_RGB, GL_UNSIGNED_BYTE,
                 depthRgbBuf_.data());
             glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        // --- Detections ---
+        if (host_) host_->fetch(hostDetections_);
+        if (queueDet_) {
+            std::shared_ptr<dai::ImgDetections> latest;
+            int received = 0;
+            while (auto msg = queueDet_->tryGet<dai::ImgDetections>()) { latest = msg; ++received; }
+            if (latest) {
+                // Undo the letterbox: the 16:9 image fills the full width and the
+                // middle band of the square network input.
+                constexpr float kImageAspect = 1080.0f / 1920.0f;
+                constexpr float kPad = (1.0f - kImageAspect) * 0.5f;
+                detections_.clear();
+                for (const auto& d : latest->detections) {
+                    Detection out;
+                    out.xmin = std::clamp(d.xmin, 0.0f, 1.0f);
+                    out.xmax = std::clamp(d.xmax, 0.0f, 1.0f);
+                    out.ymin = std::clamp((d.ymin - kPad) / kImageAspect, 0.0f, 1.0f);
+                    out.ymax = std::clamp((d.ymax - kPad) / kImageAspect, 0.0f, 1.0f);
+                    out.confidence = d.confidence;
+                    out.label = d.label;
+                    if (out.xmax <= out.xmin || out.ymax <= out.ymin) continue;
+                    // The camera's network can't be masked, so drop boxes whose object is too far.
+                    if (squelch_ && squelchDetection_ && boxBeyondSquelch(out)) continue;
+                    detections_.push_back(out);
+                }
+            }
+            detCount_ += received;
+            const double now = std::chrono::duration<double>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (detWindowStart_ == 0.0) detWindowStart_ = now;
+            if (now - detWindowStart_ >= 1.0) {
+                detFps_ = (float)(detCount_ / (now - detWindowStart_));
+                detCount_ = 0;
+                detWindowStart_ = now;
+            }
         }
 
         // --- Spatial location result ---

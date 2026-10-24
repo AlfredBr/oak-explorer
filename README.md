@@ -13,7 +13,7 @@ The current app implements Stages 1–5. Stage 5 depth post-processing can optio
 | 3 | Stereo depth heatmap and depth histogram | Complete |
 | 4 | Interactive spatial XYZ sampling | Complete |
 | 5 | Depth filtering and flicker reduction | Complete; optional CUDA path |
-| 6 | Neural inference and detection overlays | Planned |
+| 6 | Neural inference and detection overlays | Partial (detections and overlay done; spatial detections planned) |
 
 ### Stage 1 — Window and device status
 
@@ -51,9 +51,15 @@ The current app implements Stages 1–5. Stage 5 depth post-processing can optio
 - Applies host-side temporal smoothing and fills invalid display pixels from their 3×3 neighbourhood.
 - Optional CUDA path (`OAK_ENABLE_CUDA`): the same EMA, hole fill, and Turbo colormap run on an NVIDIA GPU. The CPU path remains the default and the automatic fallback. See [Optional: CUDA depth processing](#optional-cuda-depth-processing).
 
-### Stage 6 — Neural inference (planned)
+### Stage 6 — Neural inference (partial)
 
-The planned stage is to run a `.blob` model on the OAK VPU and display detection overlays. It is not implemented yet.
+Spatial (XYZ) detections are not implemented yet.
+
+**Host GPU detection.** Choosing **Host GPU** in the sidebar runs `models/yolov8s.onnx` (YOLOv8s, 640×640) on the PC's GPU through ONNX Runtime with the DirectML provider, on the full 1920×1080 frame. It works on any DirectX 12 GPU, so no CUDA or cuDNN is needed. The model loads on a background thread the first time you select it, and inference runs on a worker thread. The sidebar shows the inference rate and time. Set `OAK_ONNXRUNTIME_DIR` to an extracted `Microsoft.ML.OnnxRuntime.DirectML` NuGet package that also contains `DirectML.dll` (from `Microsoft.AI.DirectML`) under `runtimes/win-x64/native`. If it is not found, the app builds without this option.
+
+### Depth squelch
+
+**Limit detection** (on by default) also keeps detection from reporting objects beyond the limit. On Host GPU the model is fed the squelched frame, so it never sees far pixels. The OAK VPU reads the camera's own frames and cannot be masked, so its boxes are dropped when the median depth in the middle of the box is beyond the limit (boxes with no valid depth are kept). Turn the option off to detect on the full scene.
 
 ## Controls and windows
 
@@ -73,6 +79,8 @@ oak-explorer/
 │   ├── oak/
 │   │   ├── Device.h/.cpp      # OAK device enumeration and status
 │   │   └── OakStreams.h/.cpp  # RGB, stereo depth, and spatial pipeline
+│   ├── detect/
+│   │   └── HostDetector.h/.cpp  # YOLOv8 on the host GPU (ONNX Runtime + DirectML)
 │   ├── cuda/
 │   │   └── DepthProcessor.h/.cu  # Optional CUDA depth post-processing
 │   └── ui/

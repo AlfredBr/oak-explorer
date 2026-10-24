@@ -1,8 +1,12 @@
 // src/oak/OakStreams.h
 #pragma once
-#include <memory>
-#include <vector>
+#include "oak/Detection.h"
+
 #include <cstdint>
+#include <future>
+#include <memory>
+#include <string>
+#include <vector>
 
 // Forward-declare GLuint to avoid pulling OpenGL headers into every TU
 typedef unsigned int GLuint;
@@ -16,8 +20,15 @@ namespace dai {
 }
 
 namespace cuda { class DepthProcessor; }
+namespace detect { class HostDetector; }
 
 namespace oak {
+
+// Where object detection runs.
+enum class DetectorSource { Vpu, HostGpu };
+
+// Host-GPU model load progress (the model loads on a background thread).
+enum class HostDetectorState { Idle, Loading, Ready, Failed };
 
 // OakStreams owns the one dai::Device, builds a combined RGB + StereoDepth
 // pipeline, and exposes two GL textures plus the raw depth buffer.
@@ -31,6 +42,10 @@ public:
     // Must be called after the OpenGL context is active.
     // Does not throw. Logs to stderr on failure; isStreaming() stays false.
     void open();
+
+    // Path of the .blob neural network to run on the OAK. Must be set before open().
+    // If empty or missing, the pipeline runs without detection.
+    void setModelPath(std::string path) { modelPath_ = std::move(path); }
 
     // Release device and both GL textures.
     // Safe to call at any time, including if open() never succeeded.
@@ -81,7 +96,35 @@ public:
     // Average host-side depth processing time (ms) over recent frames.
     float depthProcessMs() const { return depthProcessMs_; }
 
+    // --- Object detection ---
+    // The VPU detector runs on the camera (needs the .blob from setModelPath());
+    // the host detector runs an ONNX model on the PC's GPU.
+    void setHostModelPath(std::string path) { hostModelPath_ = std::move(path); }
+    // Selecting HostGpu starts loading the host model in the background on first use.
+    void setDetectorSource(DetectorSource source);
+    DetectorSource detectorSource() const { return source_; }
+    bool hasVpuDetector() const { return hasDetector_; }
+    HostDetectorState hostState() const { return hostState_; }
+    const std::string& hostError() const { return hostError_; }
+    // True when the selected source is producing detections.
+    bool hasDetector() const;
+    // Most recent result of the selected source; replaced by each new inference.
+    const std::vector<Detection>& detections() const;
+    float detectionFps() const;
+    float hostInferMs() const;
+
+    // --- Depth squelch ---
+    // Blacks out RGB pixels farther than maxMeters (needs 1920x1080 aligned depth).
+    // hideUnknown also blacks out pixels with no valid depth reading.
+    // limitDetection also keeps detection from seeing or reporting objects beyond maxMeters.
+    void setSquelch(bool enabled, float maxMeters, bool hideUnknown, bool limitDetection) {
+        squelch_ = enabled; squelchMaxMm_ = maxMeters * 1000.0f; squelchHideUnknown_ = hideUnknown;
+        squelchDetection_ = limitDetection;
+    }
+
 private:
+    void updateHostLoad();
+    bool boxBeyondSquelch(const Detection& d) const;
     std::unique_ptr<dai::Device>          device_;
     std::shared_ptr<dai::DataOutputQueue> queueRgb_;
     std::shared_ptr<dai::DataOutputQueue> queueDepth_;
@@ -123,6 +166,27 @@ private:
     bool  hasSpatial_  = false;
 
     bool streaming_ = false;
+
+    std::string modelPath_;
+    std::shared_ptr<dai::DataOutputQueue> queueDet_;
+    std::vector<Detection> detections_;      // VPU results
+    std::vector<Detection> hostDetections_;  // host-GPU results
+
+    DetectorSource source_ = DetectorSource::Vpu;
+    std::string hostModelPath_, hostError_;
+    HostDetectorState hostState_ = HostDetectorState::Idle;
+    std::future<std::unique_ptr<detect::HostDetector>> hostLoad_;
+    std::string hostLoadError_;  // written by the loader thread, read after the future completes
+    std::unique_ptr<detect::HostDetector> host_;
+
+    bool  squelch_ = false;
+    float squelchMaxMm_ = 3000.0f;
+    bool  squelchHideUnknown_ = false;
+    bool  squelchDetection_ = true;
+    bool  hasDetector_ = false;
+    float detFps_ = 0.0f;
+    int   detCount_ = 0;
+    double detWindowStart_ = 0.0;
 };
 
 } // namespace oak

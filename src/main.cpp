@@ -117,6 +117,10 @@ int main() {
     constexpr auto streamRetryInterval = std::chrono::seconds(2);
 
     ui::SpatialMode spatialMode = ui::SpatialMode::Lock;  // default: click to lock
+    ui::DetectionSettings detSettings;
+    ui::DepthSquelchSettings squelchSettings;
+    streams.setHostModelPath(dir + "\\models\\yolov8s.onnx");
+    streams.setModelPath(dir + "\\models\\yolov6n_coco_416x416_openvino_2022.1_6shave.blob");
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -131,6 +135,10 @@ int main() {
                 nextStreamAttempt = std::chrono::steady_clock::now() + streamRetryInterval;
             }
         }
+        // Apply last frame's UI choices before polling so they take effect on this frame's data
+        streams.setDetectorSource(detSettings.source);
+        streams.setSquelch(squelchSettings.enabled, squelchSettings.maxMeters,
+                           squelchSettings.hideUnknown, squelchSettings.limitDetection);
         streams.poll();
 
         // Start ImGui frame
@@ -143,8 +151,8 @@ int main() {
             ImGuiDockNodeFlags_PassthruCentralNode);
 
         // Render UI panels
-        ui::renderSidebar(device, streams, spatialMode);
-        ui::renderStreamView(streams, spatialMode);
+        ui::renderSidebar(device, streams, spatialMode, detSettings, squelchSettings);
+        ui::renderStreamView(streams, spatialMode, detSettings);
         ui::renderDepthView(streams);
         ui::renderStereoView(streams);
 

@@ -50,6 +50,26 @@ if(WIN32)
     target_sources(oak-explorer PRIVATE src/oak-explorer.rc)
 endif()
 
+# --- Host-GPU detection via ONNX Runtime + DirectML (optional) ---
+# Point OAK_ONNXRUNTIME_DIR at an extracted Microsoft.ML.OnnxRuntime.DirectML NuGet package
+# (with DirectML.dll from Microsoft.AI.DirectML placed in runtimes/win-x64/native).
+set(OAK_ONNXRUNTIME_DIR "E:/luxonis/onnxruntime-dml" CACHE PATH "Extracted ONNX Runtime DirectML package")
+if(WIN32 AND EXISTS "${OAK_ONNXRUNTIME_DIR}/runtimes/win-x64/native/onnxruntime.dll")
+    message(STATUS "ONNX Runtime (DirectML) found: ${OAK_ONNXRUNTIME_DIR}")
+    target_sources(oak-explorer PRIVATE src/detect/HostDetector.cpp)
+    target_include_directories(oak-explorer PRIVATE "${OAK_ONNXRUNTIME_DIR}/build/native/include")
+    target_link_libraries(oak-explorer PRIVATE "${OAK_ONNXRUNTIME_DIR}/runtimes/win-x64/native/onnxruntime.lib")
+    add_custom_command(TARGET oak-explorer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${OAK_ONNXRUNTIME_DIR}/runtimes/win-x64/native"
+            $<TARGET_FILE_DIR:oak-explorer>
+        COMMENT "Copying ONNX Runtime DLLs"
+    )
+else()
+    message(STATUS "ONNX Runtime not found - host GPU detection disabled")
+    target_sources(oak-explorer PRIVATE src/detect/HostDetectorStub.cpp)
+endif()
+
 # --- Optional CUDA depth post-processing ---
 # nvcc is invoked directly (rather than enable_language(CUDA)) so the build does
 # not depend on the CUDA MSBuild integration being installed into Visual Studio.
@@ -128,3 +148,11 @@ if(WIN32)
         COMMENT "Copying depthai DLLs from ${DEPTHAI_WIN64_DIR}/bin"
     )
 endif()
+
+# Bundle neural network blobs next to the executable
+add_custom_command(TARGET oak-explorer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/models"
+        "$<TARGET_FILE_DIR:oak-explorer>/models"
+    COMMENT "Copying models"
+)

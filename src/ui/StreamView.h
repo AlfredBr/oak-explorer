@@ -2,6 +2,7 @@
 #pragma once
 #include "oak/OakStreams.h"
 #include "ui/SpatialMode.h"
+#include "ui/DetectionSettings.h"
 
 namespace ui {
 
@@ -9,6 +10,6 @@ namespace ui {
 // Handles mouse input for spatial ROI sampling.
 // streams is non-const — calls streams.setRoi() on click/hover.
 // Call inside an active ImGui frame, after streams.poll().
-void renderStreamView(oak::OakStreams& streams, SpatialMode mode);
+void renderStreamView(oak::OakStreams& streams, SpatialMode mode, const DetectionSettings& det);
 
 } // namespace ui
