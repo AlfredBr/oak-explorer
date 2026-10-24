@@ -9,6 +9,12 @@
 
 namespace oak {
 
+// Windows' OpenGL header only declares 1.1 constants. These texture formats
+// and swizzles are core in the OpenGL 3.3 context created by main().
+static constexpr GLenum kTextureSwizzleG = 0x8E43;
+static constexpr GLenum kTextureSwizzleB = 0x8E44;
+static constexpr GLint kR8 = 0x8229;
+
 // Turbo colormap LUT — 256 entries, uint8 RGB
 // Index 0 = far (10000mm) = dark purple
 // Index 255 = close (400mm) = dark red
@@ -113,6 +119,15 @@ void OakStreams::open() {
         monoRight->setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
         monoRight->setBoardSocket(dai::CameraBoardSocket::CAM_C);  // right on OAK-D-Lite
 
+        auto xoutLeft = pipeline.create<dai::node::XLinkOut>();
+        auto xoutRight = pipeline.create<dai::node::XLinkOut>();
+        xoutLeft->setStreamName("left");
+        xoutRight->setStreamName("right");
+        xoutLeft->input.setBlocking(false);
+        xoutRight->input.setBlocking(false);
+        monoLeft->out.link(xoutLeft->input);
+        monoRight->out.link(xoutRight->input);
+
         // StereoDepth — HIGH_DENSITY preset, depth output in mm as uint16
         auto stereo = pipeline.create<dai::node::StereoDepth>();
         stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
@@ -176,6 +191,8 @@ void OakStreams::open() {
         // --- Get output queues (non-blocking, 4-frame buffer) ---
         queueRgb_   = device_->getOutputQueue("rgb",   4, false);
         queueDepth_ = device_->getOutputQueue("depth", 4, false);
+        queueLeft_ = device_->getOutputQueue("left", 4, false);
+        queueRight_ = device_->getOutputQueue("right", 4, false);
         queueSpatial_       = device_->getOutputQueue("spatial",       4, false);
         queueSpatialConfig_ = device_->getInputQueue("spatialConfig");
 
@@ -214,6 +231,10 @@ void OakStreams::close() {
     streaming_ = false;
     queueRgb_.reset();           // release queues before device
     queueDepth_.reset();
+    queueLeft_.reset();
+    queueRight_.reset();
+    pendingLeft_.reset();
+    pendingRight_.reset();
     queueSpatial_.reset();
     queueSpatialConfig_.reset();
     device_.reset();             // destructor stops pipeline
@@ -231,11 +252,61 @@ void OakStreams::close() {
     depthRgbBuf_.clear();
     depthBuf_.clear();
     depthEma_.clear();
+    if (leftTex_) glDeleteTextures(1, &leftTex_);
+    if (rightTex_) glDeleteTextures(1, &rightTex_);
+    leftTex_ = rightTex_ = 0;
+    stereoW_ = stereoH_ = 0;
 }
 
 void OakStreams::poll() {
     if (!streaming_) return;
     try {
+        // Only publish matching stereo pairs. Bound queue draining so a lagging
+        // camera cannot block the render loop; retain unmatched frames for later.
+        for (int attempt = 0; attempt < 8; ++attempt) {
+            if (!pendingLeft_) pendingLeft_ = queueLeft_->tryGet<dai::ImgFrame>();
+            if (!pendingRight_) pendingRight_ = queueRight_->tryGet<dai::ImgFrame>();
+            if (!pendingLeft_ || !pendingRight_) break;
+            if (pendingLeft_->getSequenceNum() < pendingRight_->getSequenceNum()) {
+                pendingLeft_.reset();
+                continue;
+            }
+            if (pendingRight_->getSequenceNum() < pendingLeft_->getSequenceNum()) {
+                pendingRight_.reset();
+                continue;
+            }
+            const int w = pendingLeft_->getWidth(), h = pendingLeft_->getHeight();
+            if (pendingRight_->getWidth() == w && pendingRight_->getHeight() == h &&
+                pendingLeft_->getData().size() >= size_t(w) * h &&
+                pendingRight_->getData().size() >= size_t(w) * h) {
+                const bool resize = w != stereoW_ || h != stereoH_;
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                auto upload = [&](GLuint& texture, const dai::ImgFrame& frame) {
+                    if (!texture) glGenTextures(1, &texture);
+                    glBindTexture(GL_TEXTURE_2D, texture);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    // Expand mono to RGB through texture swizzles (OpenGL 3.3).
+                    glTexParameteri(GL_TEXTURE_2D, kTextureSwizzleG, GL_RED);
+                    glTexParameteri(GL_TEXTURE_2D, kTextureSwizzleB, GL_RED);
+                    if (resize)
+                        glTexImage2D(GL_TEXTURE_2D, 0, kR8, w, h, 0, GL_RED,
+                                     GL_UNSIGNED_BYTE, frame.getData().data());
+                    else
+                        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RED,
+                                        GL_UNSIGNED_BYTE, frame.getData().data());
+                };
+                upload(leftTex_, *pendingLeft_);
+                upload(rightTex_, *pendingRight_);
+                if (resize) fprintf(stderr, "OakStreams: stereo pair size = %dx%d\n", w, h);
+                stereoW_ = w;
+                stereoH_ = h;
+                glBindTexture(GL_TEXTURE_2D, 0);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            }
+            pendingLeft_.reset();
+            pendingRight_.reset();
+        }
         // --- RGB frame ---
         auto rgbFrame = queueRgb_->tryGet<dai::ImgFrame>();
         if (rgbFrame) {

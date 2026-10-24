@@ -40,6 +40,7 @@ add_executable(oak-explorer
     src/ui/Sidebar.cpp
     src/ui/StreamView.cpp
     src/ui/DepthView.cpp
+    src/ui/StereoView.cpp
     ${IMGUI_SOURCES}
     ${IMPLOT_DIR}/implot.cpp
     ${IMPLOT_DIR}/implot_items.cpp

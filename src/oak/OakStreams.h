@@ -12,6 +12,7 @@ namespace dai {
     class Device;
     class DataOutputQueue;
     class DataInputQueue;
+    class ImgFrame;
 }
 
 namespace oak {
@@ -46,6 +47,10 @@ public:
     int    rgbHeight()      const { return 1080; }
     int    depthWidth()     const { return depthW_; }
     int    depthHeight()    const { return depthH_; }
+    GLuint leftTextureId()  const { return leftTex_; }
+    GLuint rightTextureId() const { return rightTex_; }
+    int stereoWidth() const { return stereoW_; }
+    int stereoHeight() const { return stereoH_; }
 
     // Raw uint16 depth values in mm, 0 = invalid. Updated each poll().
     // Used by DepthView to build the ImPlot histogram.
@@ -73,6 +78,10 @@ private:
     std::unique_ptr<dai::Device>          device_;
     std::shared_ptr<dai::DataOutputQueue> queueRgb_;
     std::shared_ptr<dai::DataOutputQueue> queueDepth_;
+    std::shared_ptr<dai::DataOutputQueue> queueLeft_, queueRight_;
+    std::shared_ptr<dai::ImgFrame> pendingLeft_, pendingRight_;
+    GLuint leftTex_ = 0, rightTex_ = 0;
+    int stereoW_ = 0, stereoH_ = 0;
 
     GLuint rgbTex_   = 0;
     GLuint depthTex_ = 0;

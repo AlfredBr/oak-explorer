@@ -10,6 +10,7 @@
 #include "ui/Sidebar.h"
 #include "ui/StreamView.h"
 #include "ui/DepthView.h"
+#include "ui/StereoView.h"
 #include "ui/SpatialMode.h"
 
 #include <cstdio>
@@ -145,6 +146,7 @@ int main() {
         ui::renderSidebar(device, streams, spatialMode);
         ui::renderStreamView(streams, spatialMode);
         ui::renderDepthView(streams);
+        ui::renderStereoView(streams);
 
         // Render and present
         ImGui::Render();

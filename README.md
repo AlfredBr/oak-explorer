@@ -60,6 +60,7 @@ The planned stage is to run a `.blob` model on the OAK VPU and display detection
 - Choose **Lock** or **Track** in the sidebar to control spatial sampling.
 - Click or hover over the Camera image according to the selected mode.
 - The **Depth** window displays the heatmap; **Depth Distribution** shows the raw-depth histogram.
+- **Stereo Cameras** shows synchronized left/right grayscale images. Choose **Separate** for side-by-side images or **Overlay** with an adjustable right-image blend (0 = left only, 1 = right only). These are raw camera views, so lens distortion and stereo parallax remain visible.
 - Move and dock the windows using ImGui. The layout is saved in `imgui.ini`; window geometry is saved in `window.ini`, both beside the executable.
 - Without an available camera, the stream panels show a placeholder while the app retries.
 
