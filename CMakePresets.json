@@ -30,6 +30,17 @@
         "GLFW_ROOT": "E:/luxonis/glfw-win64",
         "OAK_ENABLE_CUDA": "OFF"
       }
+    },
+    {
+      "name": "windows-release-cuda",
+      "displayName": "Windows Release (CUDA depth processing)",
+      "inherits": "windows-release",
+      "binaryDir": "${sourceDir}/out/build/release-cuda",
+      "cacheVariables": {
+        "OAK_ENABLE_CUDA": "ON",
+        "OAK_CUDA_ARCH": "86",
+        "OAK_CUDA_MSVC_TOOLSET": "14.44"
+      }
     }
   ],
   "buildPresets": [
@@ -40,6 +51,10 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release"
+    },
+    {
+      "name": "windows-release-cuda",
+      "configurePreset": "windows-release-cuda"
     }
   ]
 }

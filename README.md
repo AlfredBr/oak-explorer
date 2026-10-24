@@ -2,7 +2,7 @@
 
 A Windows desktop application and C++ learning project for the [Luxonis OAK-D-Lite](https://shop.luxonis.com/products/oak-d-lite) depth camera. It uses DepthAI, Dear ImGui, ImPlot, GLFW, and OpenGL to display camera streams and sample 3D coordinates.
 
-The current app implements Stages 1–5. CUDA acceleration is deferred; neural inference (Stage 6) is planned.
+The current app implements Stages 1–5. Stage 5 depth post-processing can optionally run on an NVIDIA GPU with CUDA; neural inference (Stage 6) is planned.
 
 ## Features and stages
 
@@ -12,7 +12,7 @@ The current app implements Stages 1–5. CUDA acceleration is deferred; neural i
 | 2 | Live RGB camera stream | Complete |
 | 3 | Stereo depth heatmap and depth histogram | Complete |
 | 4 | Interactive spatial XYZ sampling | Complete |
-| 5 | Depth filtering and flicker reduction | Complete; CUDA deferred |
+| 5 | Depth filtering and flicker reduction | Complete; optional CUDA path |
 | 6 | Neural inference and detection overlays | Planned |
 
 ### Stage 1 — Window and device status
@@ -49,7 +49,7 @@ The current app implements Stages 1–5. CUDA acceleration is deferred; neural i
 
 - Enables left-right consistency, median, speckle, and temporal filtering in the device's `StereoDepth` pipeline.
 - Applies host-side temporal smoothing and fills invalid display pixels from their 3×3 neighbourhood.
-- CUDA acceleration is deferred; the current filter and display path uses the OAK device and CPU.
+- Optional CUDA path (`OAK_ENABLE_CUDA`): the same EMA, hole fill, and Turbo colormap run on an NVIDIA GPU. The CPU path remains the default and the automatic fallback. See [Optional: CUDA depth processing](#optional-cuda-depth-processing).
 
 ### Stage 6 — Neural inference (planned)
 
@@ -73,6 +73,8 @@ oak-explorer/
 │   ├── oak/
 │   │   ├── Device.h/.cpp      # OAK device enumeration and status
 │   │   └── OakStreams.h/.cpp  # RGB, stereo depth, and spatial pipeline
+│   ├── cuda/
+│   │   └── DepthProcessor.h/.cu  # Optional CUDA depth post-processing
 │   └── ui/
 │       ├── Sidebar.h/.cpp     # Device status, spatial mode, and XYZ readout
 │       ├── StreamView.h/.cpp  # RGB view, ROI input, and reticle
@@ -98,7 +100,7 @@ oak-explorer/
 | ImPlot | Vendored in `third_party/implot` |
 | OpenGL | 3.3 core support from the graphics driver |
 
-No CUDA toolkit or NVIDIA GPU is required by the current implementation.
+No CUDA toolkit or NVIDIA GPU is required unless you enable the optional CUDA path.
 
 ## Build on Windows
 
@@ -138,6 +140,23 @@ cmake --build out/build/debug --config Debug
 ```
 
 The Release executable is `out\build\release\Release\oak-explorer.exe`. Alternatively, open the repository root in Visual Studio using **File → Open → Folder** and select a configure preset.
+
+## Optional: CUDA depth processing
+
+The host-side depth stage (temporal EMA, 3×3 hole fill, Turbo colormap) can run on an NVIDIA GPU. It is off by default.
+
+```powershell
+cmake --preset windows-release-cuda
+cmake --build --preset windows-release-cuda --config Release
+```
+
+- Requires the CUDA Toolkit (tested with 13.1) and an NVIDIA GPU. The preset targets compute capability 8.6 (RTX 30xx); change `OAK_CUDA_ARCH` for other GPUs.
+- `src/cuda/DepthProcessor.cu` is compiled by calling `nvcc` directly, so the CUDA Visual Studio integration is not needed.
+- CUDA 13.x rejects the newest MSVC. `OAK_CUDA_MSVC_TOOLSET` (preset default `14.44`) selects an older installed toolset for that one file; clear it if your MSVC is supported.
+- At startup the app logs `depth post-processing on CUDA` or `on CPU`, and every 120 frames logs the average processing time. If CUDA is unavailable or fails, it falls back to the CPU path.
+- Results match the CPU path except for hole filling, which fills one 3×3 ring per frame instead of cascading through a frame.
+
+On the development machine (RTX 3080, 1920×1080 depth) the CPU path averages about 5.3 ms/frame. The CUDA path takes about 1 ms while the GPU is at boost clocks, but this workload is too light to keep the GPU out of its idle power state, where it rises to roughly 5 ms. Measure on your own system before relying on it.
 
 ## Run and troubleshoot
 

@@ -15,6 +15,8 @@ namespace dai {
     class ImgFrame;
 }
 
+namespace cuda { class DepthProcessor; }
+
 namespace oak {
 
 // OakStreams owns the one dai::Device, builds a combined RGB + StereoDepth
@@ -74,6 +76,11 @@ public:
     int droppedRgbFrames()   const { return droppedRgb_; }
     int droppedDepthFrames() const { return droppedDepth_; }
 
+    // True when the depth colormap/filter stage runs on the GPU.
+    bool usingCuda() const;
+    // Average host-side depth processing time (ms) over recent frames.
+    float depthProcessMs() const { return depthProcessMs_; }
+
 private:
     std::unique_ptr<dai::Device>          device_;
     std::shared_ptr<dai::DataOutputQueue> queueRgb_;
@@ -92,6 +99,14 @@ private:
     std::vector<uint8_t>  depthRgbBuf_;  // depthW_*depthH_*3 — Turbo-colored staging buffer
     std::vector<uint16_t> depthBuf_;     // depthW_*depthH_   — raw depth values for histogram
     std::vector<float>    depthEma_;     // depthW_*depthH_   — temporal EMA of depth (float to avoid quantization drift)
+
+    // Optional GPU path (null after a CUDA failure). Only present when built with OAK_ENABLE_CUDA.
+#ifdef OAK_USE_CUDA
+    std::unique_ptr<cuda::DepthProcessor> gpuDepth_;
+#endif
+    float depthProcessMs_ = 0.0f;
+    double depthMsAccum_  = 0.0;
+    int    depthMsFrames_ = 0;
 
     int     droppedRgb_   = 0;
     int     droppedDepth_ = 0;

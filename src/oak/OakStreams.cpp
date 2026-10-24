@@ -5,7 +5,12 @@
 #include <GLFW/glfw3.h>   // Use GLFW's header, not <GL/GL.h> — avoids WINGDIAPI conflict with depthai
 
 #include <algorithm>  // std::clamp
+#include <chrono>
 #include <cstdio>
+
+#ifdef OAK_USE_CUDA
+#include "cuda/DepthProcessor.h"
+#endif
 
 namespace oak {
 
@@ -83,6 +88,14 @@ void OakStreams::setRoi(float normX, float normY) {
 
 OakStreams::OakStreams()  = default;
 OakStreams::~OakStreams() { close(); }
+
+bool OakStreams::usingCuda() const {
+#ifdef OAK_USE_CUDA
+    return gpuDepth_ && gpuDepth_->ready();
+#else
+    return false;
+#endif
+}
 
 void OakStreams::open() {
     close();
@@ -249,9 +262,16 @@ void OakStreams::close() {
         glDeleteTextures(1, &depthTex_);
         depthTex_ = 0;
     }
+    // The GPU path page-locks depthBuf_/depthRgbBuf_, so it must go first.
+#ifdef OAK_USE_CUDA
+    gpuDepth_.reset();
+#endif
     depthRgbBuf_.clear();
     depthBuf_.clear();
     depthEma_.clear();
+    depthProcessMs_ = 0.0f;
+    depthMsAccum_   = 0.0;
+    depthMsFrames_  = 0;
     if (leftTex_) glDeleteTextures(1, &leftTex_);
     if (rightTex_) glDeleteTextures(1, &rightTex_);
     leftTex_ = rightTex_ = 0;
@@ -343,9 +363,22 @@ void OakStreams::poll() {
                 depthW_ = W;
                 depthH_ = H;
                 const int pc = W * H;
+#ifdef OAK_USE_CUDA
+                gpuDepth_.reset();  // unpin the old buffers before they are reallocated
+#endif
                 depthRgbBuf_.resize(pc * 3);
                 depthBuf_.resize(pc);
                 depthEma_.assign(pc, 0.0f);
+#ifdef OAK_USE_CUDA
+                if (cuda::DepthProcessor::available()) {
+                    auto proc = std::make_unique<cuda::DepthProcessor>();
+                    if (proc->init(W, H, &kTurboLut[0][0], depthBuf_.data(), depthRgbBuf_.data())) {
+                        gpuDepth_ = std::move(proc);
+                        fprintf(stderr, "OakStreams: depth post-processing on CUDA\n");
+                    }
+                }
+                if (!gpuDepth_) fprintf(stderr, "OakStreams: depth post-processing on CPU\n");
+#endif
                 if (depthTex_ == 0) glGenTextures(1, &depthTex_);
                 glBindTexture(GL_TEXTURE_2D, depthTex_);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -360,57 +393,82 @@ void OakStreams::poll() {
             const int pixelCount = W * H;
             std::copy_n(depthData, pixelCount, depthBuf_.data());
             constexpr float kEmaAlpha = 0.3f;
-            float* ema = depthEma_.data();
-            for (int i = 0; i < pixelCount; ++i) {
-                float raw = (float)depthData[i];
-                if (raw == 0.0f) {
-                    // Invalid pixel — keep previous EMA value (don't corrupt history)
-                    continue;
-                }
-                if (ema[i] == 0.0f) {
-                    // First valid sample for this pixel — seed directly
-                    ema[i] = raw;
-                } else {
-                    ema[i] = kEmaAlpha * raw + (1.0f - kEmaAlpha) * ema[i];
+
+            const auto procStart = std::chrono::steady_clock::now();
+            bool processed = false;
+#ifdef OAK_USE_CUDA
+            if (gpuDepth_) {
+                processed = gpuDepth_->process(kEmaAlpha);
+                if (!processed) {
+                    fprintf(stderr, "OakStreams: CUDA depth processing failed, falling back to CPU\n");
+                    gpuDepth_.reset();
+                    depthEma_.assign(pixelCount, 0.0f);
                 }
             }
-
-            // --- Host-side hole fill (Step 3 of flicker reduction) ---
-            // Fill pixels that have never received a valid depth sample by
-            // averaging valid neighbors in a 3×3 window. Single pass, in-place.
-            for (int y = 0; y < H; ++y) {
-                for (int x = 0; x < W; ++x) {
-                    int idx = y * W + x;
-                    if (ema[idx] != 0.0f) continue;  // already valid
-                    float sum = 0.0f;
-                    int   cnt = 0;
-                    for (int dy = -1; dy <= 1; ++dy) {
-                        for (int dx = -1; dx <= 1; ++dx) {
-                            int nx = x + dx, ny = y + dy;
-                            if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
-                            float v = ema[ny * W + nx];
-                            if (v != 0.0f) { sum += v; ++cnt; }
-                        }
+#endif
+            if (!processed) {
+                float* ema = depthEma_.data();
+                for (int i = 0; i < pixelCount; ++i) {
+                    float raw = (float)depthData[i];
+                    if (raw == 0.0f) {
+                        // Invalid pixel — keep previous EMA value (don't corrupt history)
+                        continue;
                     }
-                    if (cnt > 0) ema[idx] = sum / (float)cnt;
+                    if (ema[i] == 0.0f) {
+                        // First valid sample for this pixel — seed directly
+                        ema[i] = raw;
+                    } else {
+                        ema[i] = kEmaAlpha * raw + (1.0f - kEmaAlpha) * ema[i];
+                    }
+                }
+
+                // --- Host-side hole fill (Step 3 of flicker reduction) ---
+                // Fill pixels that have never received a valid depth sample by
+                // averaging valid neighbors in a 3×3 window. Single pass, in-place.
+                for (int y = 0; y < H; ++y) {
+                    for (int x = 0; x < W; ++x) {
+                        int idx = y * W + x;
+                        if (ema[idx] != 0.0f) continue;  // already valid
+                        float sum = 0.0f;
+                        int   cnt = 0;
+                        for (int dy = -1; dy <= 1; ++dy) {
+                            for (int dx = -1; dx <= 1; ++dx) {
+                                int nx = x + dx, ny = y + dy;
+                                if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+                                float v = ema[ny * W + nx];
+                                if (v != 0.0f) { sum += v; ++cnt; }
+                            }
+                        }
+                        if (cnt > 0) ema[idx] = sum / (float)cnt;
+                    }
+                }
+
+                // Apply Turbo colormap using the smoothed EMA values
+                uint8_t* rgbBuf = depthRgbBuf_.data();
+                for (int i = 0; i < pixelCount; ++i) {
+                    float d = ema[i];
+                    if (d == 0.0f) {
+                        // No valid depth ever seen — black
+                        rgbBuf[i*3] = rgbBuf[i*3+1] = rgbBuf[i*3+2] = 0;
+                        continue;
+                    }
+                    int idx = std::clamp(
+                        (int)((10000.0f - d) / (10000.0f - 400.0f) * 255.0f),
+                        0, 255);
+                    rgbBuf[i*3]   = kTurboLut[idx][0];
+                    rgbBuf[i*3+1] = kTurboLut[idx][1];
+                    rgbBuf[i*3+2] = kTurboLut[idx][2];
                 }
             }
 
-            // Apply Turbo colormap using the smoothed EMA values
-            uint8_t* rgbBuf = depthRgbBuf_.data();
-            for (int i = 0; i < pixelCount; ++i) {
-                float d = ema[i];
-                if (d == 0.0f) {
-                    // No valid depth ever seen — black
-                    rgbBuf[i*3] = rgbBuf[i*3+1] = rgbBuf[i*3+2] = 0;
-                    continue;
-                }
-                int idx = std::clamp(
-                    (int)((10000.0f - d) / (10000.0f - 400.0f) * 255.0f),
-                    0, 255);
-                rgbBuf[i*3]   = kTurboLut[idx][0];
-                rgbBuf[i*3+1] = kTurboLut[idx][1];
-                rgbBuf[i*3+2] = kTurboLut[idx][2];
+            depthMsAccum_ += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - procStart).count();
+            if (++depthMsFrames_ == 120) {
+                depthProcessMs_ = (float)(depthMsAccum_ / depthMsFrames_);
+                fprintf(stderr, "OakStreams: depth processing avg %.2f ms/frame (%s, %dx%d)\n",
+                        depthProcessMs_, usingCuda() ? "CUDA" : "CPU", W, H);
+                depthMsAccum_ = 0.0;
+                depthMsFrames_ = 0;
             }
 
             glBindTexture(GL_TEXTURE_2D, depthTex_);
