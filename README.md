@@ -2,7 +2,7 @@
 
 A Windows desktop application and C++ learning project for the [Luxonis OAK-D-Lite](https://shop.luxonis.com/products/oak-d-lite) depth camera. It uses DepthAI, Dear ImGui, ImPlot, GLFW, and OpenGL to display camera streams and sample 3D coordinates.
 
-The current app implements Stages 1–5. Stage 5 depth post-processing can optionally run on an NVIDIA GPU with CUDA; neural inference (Stage 6) is planned.
+Stages 1–5 are complete, including an optional CUDA backend for host-side depth processing. Stage 6 includes object detection on either the OAK VPU or the host GPU, plus a depth-based camera and detection limit. Spatial XYZ detections are still planned.
 
 ## Features and stages
 
@@ -53,18 +53,27 @@ The current app implements Stages 1–5. Stage 5 depth post-processing can optio
 
 ### Stage 6 — Neural inference (partial)
 
-Spatial (XYZ) detections are not implemented yet.
+Choose the detection backend in the sidebar:
 
-**Host GPU detection.** Choosing **Host GPU** in the sidebar runs `models/yolov8s.onnx` (YOLOv8s, 640×640) on the PC's GPU through ONNX Runtime with the DirectML provider, on the full 1920×1080 frame. It works on any DirectX 12 GPU, so no CUDA or cuDNN is needed. The model loads on a background thread the first time you select it, and inference runs on a worker thread. The sidebar shows the inference rate and time. Set `OAK_ONNXRUNTIME_DIR` to an extracted `Microsoft.ML.OnnxRuntime.DirectML` NuGet package that also contains `DirectML.dll` (from `Microsoft.AI.DirectML`) under `runtimes/win-x64/native`. If it is not found, the app builds without this option.
+- **OAK VPU** runs the bundled YOLOv6n COCO model (`models/yolov6n_coco_416x416_openvino_2022.1_6shave.blob`, 416×416, 80 classes) on the camera. It uses the RGB preview and maps letterboxed detections back onto the full Camera view.
+- **Host GPU** runs the bundled YOLOv8s COCO model (`models/yolov8s.onnx`, 640×640) through ONNX Runtime's DirectML provider on the PC GPU. It processes the full 1920×1080 camera frame. Model initialization runs in the background; inference runs on a worker thread. The sidebar displays the inference rate and time.
+
+Both backends share the detection overlay and minimum-confidence slider. The model files are copied beside the executable during the build. Host GPU inference is optional: set `OAK_ONNXRUNTIME_DIR` to an extracted `Microsoft.ML.OnnxRuntime.DirectML` NuGet package containing `build/native/include` and `runtimes/win-x64/native`, and place `DirectML.dll` from `Microsoft.AI.DirectML` in that native folder. If ONNX Runtime is unavailable at configure time, the app builds without the host-GPU backend. DirectML requires a compatible DirectX 12 GPU; it does not require CUDA or cuDNN.
+
+Spatial XYZ detections are not implemented yet.
 
 ### Depth squelch
 
-**Limit detection** (on by default) also keeps detection from reporting objects beyond the limit. On Host GPU the model is fed the squelched frame, so it never sees far pixels. The OAK VPU reads the camera's own frames and cannot be masked, so its boxes are dropped when the median depth in the middle of the box is beyond the limit (boxes with no valid depth are kept). Turn the option off to detect on the full scene.
+The sidebar's **Depth squelch** section has a **Hide far pixels** checkbox and a distance slider (0.3–10 m). When enabled, pixels farther than the selected distance are blacked out in the Camera view using the depth map aligned to RGB. **Hide unknown** also blacks out pixels without a valid depth reading.
+
+**Limit detection** is enabled by default and applies the same distance limit to detection. The Host GPU model receives the squelched image, so it cannot see pixels beyond the limit. The OAK VPU processes camera frames internally and cannot be masked, so detections are instead discarded when the median valid depth in the middle of a box is beyond the limit; boxes with no valid depth samples are kept. Turn off **Limit detection** to continue detecting objects beyond the visual squelch.
 
 ## Controls and windows
 
 - Choose **Lock** or **Track** in the sidebar to control spatial sampling.
 - Click or hover over the Camera image according to the selected mode.
+- In **Detection**, switch between **OAK VPU** and **Host GPU**, toggle boxes, and adjust the minimum confidence.
+- In **Depth squelch**, enable far-pixel masking, set the maximum distance, optionally hide pixels with unknown depth, and choose whether the same limit applies to detection.
 - The **Depth** window displays the heatmap; **Depth Distribution** shows the raw-depth histogram.
 - **Stereo Cameras** shows synchronized left/right grayscale images. Choose **Separate** for side-by-side images or **Overlay** with an adjustable right-image blend (0 = left only, 1 = right only). These are raw camera views, so lens distortion and stereo parallax remain visible.
 - Move and dock the windows using ImGui. The layout is saved in `imgui.ini`; window geometry is saved in `window.ini`, both beside the executable.
@@ -80,14 +89,17 @@ oak-explorer/
 │   │   ├── Device.h/.cpp      # OAK device enumeration and status
 │   │   └── OakStreams.h/.cpp  # RGB, stereo depth, and spatial pipeline
 │   ├── detect/
-│   │   └── HostDetector.h/.cpp  # YOLOv8 on the host GPU (ONNX Runtime + DirectML)
+│   │   ├── HostDetector.h/.cpp  # YOLOv8 on the host GPU (ONNX Runtime + DirectML)
+│   │   └── HostDetectorStub.cpp # Fallback when ONNX Runtime is unavailable
 │   ├── cuda/
-│   │   └── DepthProcessor.h/.cu  # Optional CUDA depth post-processing
+│   │   └── DepthProcessor.h/.cu # Optional CUDA depth post-processing
 │   └── ui/
-│       ├── Sidebar.h/.cpp     # Device status, spatial mode, and XYZ readout
-│       ├── StreamView.h/.cpp  # RGB view, ROI input, and reticle
-│       ├── DepthView.h/.cpp   # Depth heatmap and histogram
-│       └── SpatialMode.h      # Lock/Track mode
+│       ├── Sidebar.h/.cpp       # Device status, detection and squelch controls
+│       ├── StreamView.h/.cpp    # RGB view, detections, ROI input, and reticle
+│       ├── DepthView.h/.cpp     # Depth heatmap and histogram
+│       ├── DetectionSettings.h  # Detection and depth-squelch UI state
+│       └── SpatialMode.h        # Lock/Track mode
+├── models/                      # Bundled YOLOv6n blob and YOLOv8s ONNX model
 ├── third_party/
 │   ├── imgui/                 # Dear ImGui docking branch
 │   └── implot/                # ImPlot
@@ -108,7 +120,7 @@ oak-explorer/
 | ImPlot | Vendored in `third_party/implot` |
 | OpenGL | 3.3 core support from the graphics driver |
 
-No CUDA toolkit or NVIDIA GPU is required unless you enable the optional CUDA path.
+A CUDA toolkit and NVIDIA GPU are only needed for the optional CUDA depth path. Host-GPU detection is optional and uses ONNX Runtime with DirectML, which requires a compatible DirectX 12 GPU; it does not require CUDA or cuDNN. The OAK VPU detector does not require host-GPU inference dependencies.
 
 ## Build on Windows
 
@@ -119,7 +131,7 @@ git clone https://github.com/AlfredBr/oak-explorer.git
 cd oak-explorer
 ```
 
-Download the Windows prebuilt packages for [DepthAI Core](https://github.com/luxonis/depthai-core/releases) 2.32.0 and [GLFW](https://www.glfw.org/download.html) 3.4. Extract them to directories of your choice. Dear ImGui and ImPlot are already included in the repository.
+Download the Windows prebuilt packages for [DepthAI Core](https://github.com/luxonis/depthai-core/releases) 2.32.0 and [GLFW](https://www.glfw.org/download.html) 3.4. Extract them to directories of your choice. Dear ImGui and ImPlot are already included in the repository. The OAK VPU model and ONNX model are included in `models/`. To build with host-GPU detection, also obtain the ONNX Runtime DirectML package and `DirectML.dll` from `Microsoft.AI.DirectML`; this is optional if you only need the OAK VPU detector.
 
 ### 2. Set local dependency paths
 
@@ -131,7 +143,7 @@ Edit `depthai_DIR`, `DEPTHAI_WIN64_DIR`, and `GLFW_ROOT` in both configure prese
 "GLFW_ROOT": "C:/path/to/glfw-win64"
 ```
 
-`GLFW_ROOT` should contain `include` and `lib-vc2022` directories. `DEPTHAI_WIN64_DIR` should contain the package's `bin` directory; CMake copies those runtime DLLs beside the built executable.
+`GLFW_ROOT` should contain `include` and `lib-vc2022` directories. `DEPTHAI_WIN64_DIR` should contain the package's `bin` directory; CMake copies those runtime DLLs beside the built executable. For host-GPU detection, set the CMake cache path `OAK_ONNXRUNTIME_DIR` to the extracted ONNX Runtime DirectML package. The build copies its runtime DLLs beside the executable when found; otherwise the VPU backend remains available.
 
 ### 3. Configure and build
 
